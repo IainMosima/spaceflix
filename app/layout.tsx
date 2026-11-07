@@ -27,10 +27,12 @@ export const metadata: Metadata = {
 //    can't tell it's a TV.
 // 2. Once per session, reports what this browser supports to /api/tv-check so
 //    a TV visit shows up in data/tv-check.log without opening a special page.
+// The Hisense/VIDAA browser (UA "…Odin/111…") is deliberately NOT tagged as a
+// TV: it gets the same player as a computer, which is the one wanted there.
 const tvBootScript = `(function(){
 var d=document.documentElement,ua=navigator.userAgent,cm=ua.match(/Chrome\\/(\\d+)/);
 if((!window.Promise||!window.fetch||(cm&&+cm[1]<60))&&location.pathname!=="/lite"&&location.search.indexOf("full=1")<0){location.replace("/lite");return}
-if(/tv|vidaa|hisense|odin|tizen|webos|netcast|viera|roku/i.test(ua))d.className+=" tv";
+if(/tv|vidaa|hisense|tizen|webos|netcast|viera|roku/i.test(ua))d.className+=" tv";
 try{if(sessionStorage.getItem("tvbeacon"))return;sessionStorage.setItem("tvbeacon","1")}catch(e){}
 window.addEventListener("load",function(){
 function sup(q){try{return CSS.supports(q)}catch(e){return "err"}}
