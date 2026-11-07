@@ -645,6 +645,7 @@ function WatchPlayer({ params }: WatchPageProps) {
             </p>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <button
+                autoFocus
                 onClick={() => {
                   setAskKeep(false);
                   goNext(false);
@@ -654,7 +655,6 @@ function WatchPlayer({ params }: WatchPageProps) {
                 Keep
               </button>
               <button
-                autoFocus
                 onClick={() => {
                   setAskKeep(false);
                   goNext(true);
