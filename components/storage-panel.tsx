@@ -34,6 +34,12 @@ export function StoragePanel({
   // Episodes inside one folder are always reclaimed; this covers everything else.
   const [autoPurge, setAutoPurge] = useState<boolean | null>(null);
   const [prefetch, setPrefetch] = useState<boolean | null>(null);
+  // After Next: when the previous episode goes (watched N min / P% downloaded).
+  const [purgeRule, setPurgeRule] = useState<{
+    mode: "watched" | "downloaded";
+    minutes: number;
+    percent: number;
+  } | null>(null);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -41,6 +47,11 @@ export function StoragePanel({
       .then((data) => {
         setAutoPurge(data?.autoPurgePrevious === true);
         setPrefetch(data?.prefetchNextEpisode !== false);
+        setPurgeRule({
+          mode: data?.purgePreviousMode === "downloaded" ? "downloaded" : "watched",
+          minutes: data?.purgePreviousMinutes ?? 7,
+          percent: data?.purgePreviousPercent ?? 20,
+        });
       })
       .catch(() => {
         setAutoPurge(false);
@@ -60,6 +71,19 @@ export function StoragePanel({
     } catch {
       setPrefetch(!next);
     }
+  };
+
+  const savePurgeRule = (next: NonNullable<typeof purgeRule>) => {
+    setPurgeRule(next);
+    fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        purgePreviousMode: next.mode,
+        purgePreviousMinutes: next.minutes,
+        purgePreviousPercent: next.percent,
+      }),
+    }).catch(() => {});
   };
 
   const toggleAutoPurge = async () => {
@@ -189,6 +213,54 @@ export function StoragePanel({
           />
         </span>
       </button>
+
+      {/* After Next: when the previous episode is deleted */}
+      {purgeRule && (
+        <div className="mb-3 px-2.5 -mx-0.5">
+          <p id="purge-rule-label" className="text-sm text-zinc-300 mb-2">
+            When I press Next, delete the previous episode after:
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-labelledby="purge-rule-label"
+              value={purgeRule.mode}
+              onChange={(e) =>
+                savePurgeRule({ ...purgeRule, mode: e.target.value as "watched" | "downloaded" })
+              }
+              className="h-11 min-w-0 rounded-lg border border-zinc-700 bg-zinc-800 px-3 text-base sm:text-sm text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+            >
+              <option value="watched">I&apos;ve watched this many minutes of the next one</option>
+              <option value="downloaded">the next one is this % downloaded</option>
+            </select>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={purgeRule.mode === "watched" ? 60 : 100}
+              aria-label={purgeRule.mode === "watched" ? "Minutes watched" : "Percent downloaded"}
+              value={purgeRule.mode === "watched" ? purgeRule.minutes : purgeRule.percent}
+              onChange={(e) => {
+                const max = purgeRule.mode === "watched" ? 60 : 100;
+                const n = Math.round(Number(e.target.value));
+                if (!Number.isFinite(n) || n < 1) return;
+                const v = Math.min(max, n);
+                savePurgeRule(
+                  purgeRule.mode === "watched"
+                    ? { ...purgeRule, minutes: v }
+                    : { ...purgeRule, percent: v }
+                );
+              }}
+              className="h-11 w-20 rounded-lg border border-zinc-700 bg-zinc-800 px-3 text-base sm:text-sm text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+            />
+            <span className="text-sm text-zinc-500">
+              {purgeRule.mode === "watched" ? "min" : "%"}
+            </span>
+          </div>
+          <p className="text-xs text-zinc-500 mt-1">
+            Go back before then and it&apos;s kept. Kept if it doesn&apos;t happen within 6 hours.
+          </p>
+        </div>
+      )}
 
       {/* Disk space line */}
       {disk && disk.totalBytes > 0 && (

@@ -19,6 +19,9 @@ const DEFAULT_SETTINGS: EngineSettings = {
   autoPurgePrevious: false, // never reclaim without asking unless turned on
   prefetchNextEpisode: true,
   prefetchMinBufferSeconds: 300, // only once the current episode is well ahead
+  purgePreviousMode: "watched", // after Next: drop the previous episode once 7 min in
+  purgePreviousMinutes: 7,
+  purgePreviousPercent: 20,
 };
 
 function ensureSettingsFile(path: string): void {

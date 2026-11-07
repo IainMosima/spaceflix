@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { VideoPlayer } from "@/components/video-player";
 import { useNextEpisode } from "@/hooks/use-next-episode";
 import { useVlcCopy } from "@/hooks/use-vlc-copy";
+import { episodeCode } from "@/lib/episode-order";
 import { Loader2, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -29,7 +30,16 @@ function formatSpeed(bytesPerSec: number): string {
   return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
 }
 
-export default function WatchPage({ params }: WatchPageProps) {
+// One player per episode: Next inside a season pack only changes ?file=, and
+// the player sets its stream up once, so give each episode a fresh mount —
+// new stream, subtitles, saved position and session, every time.
+export default function WatchPage(props: WatchPageProps) {
+  const { infoHash } = use(props.params);
+  const file = useSearchParams().get("file") ?? "";
+  return <WatchPlayer key={`${infoHash}:${file}`} {...props} />;
+}
+
+function WatchPlayer({ params }: WatchPageProps) {
   const { infoHash } = use(params);
   const router = useRouter();
   const copyVlc = useVlcCopy();
@@ -82,7 +92,9 @@ export default function WatchPage({ params }: WatchPageProps) {
 
   const fileIndexNum = fileIndex ? parseInt(fileIndex, 10) || 0 : 0;
 
-  const { nextLabel, nextFileIndex, nextFileSize, goNext } = useNextEpisode(
+  const [askKeep, setAskKeep] = useState(false);
+  const thisCode = episodeCode(title) ?? "this episode";
+  const { nextLabel, nextFileIndex, nextFileSize, goNext, prevLabel, goPrev } = useNextEpisode(
     infoHash,
     fileIndexNum,
     returnTo,
@@ -238,6 +250,7 @@ export default function WatchPage({ params }: WatchPageProps) {
   }, [infoHash, fileIndexNum, title]);
 
   // Poll until we have at least 1 peer, then start streaming
+  const loadRequestedRef = useRef(false);
   useEffect(() => {
     if (peersReady) return;
 
@@ -254,12 +267,37 @@ export default function WatchPage({ params }: WatchPageProps) {
               files?: { path: string }[];
             }
           | undefined;
-        if (!torrent) return;
+        if (!torrent) {
+          // Not loaded (e.g. the app restarted, or this is a bookmark/refresh):
+          // load it once, with the library's magnet when there is one.
+          if (!loadRequestedRef.current) {
+            loadRequestedRef.current = true;
+            const h = infoHash.toLowerCase();
+            fetch("/api/library")
+              .then((r) => (r.ok ? r.json() : { items: [] }))
+              .then((lib: { items?: { infoHash?: string; magnet: string }[] }) => {
+                const item = lib.items?.find(
+                  (i) => i.infoHash?.toLowerCase() === h || i.magnet.toLowerCase().includes(h)
+                );
+                return fetch("/api/torrent/files", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ magnet: item?.magnet ?? `magnet:?xt=urn:btih:${infoHash}` }),
+                });
+              })
+              .catch(() => {
+                loadRequestedRef.current = false; // try again on the next poll
+              });
+          }
+          return;
+        }
         setPeers(torrent.numPeers);
         setDlSpeed(torrent.downloadSpeed);
         const file = torrent.files?.[fileIndex ? parseInt(fileIndex, 10) : 0];
         if (file?.path) setFilePath(file.path);
-        if (torrent.numPeers >= 1) setPeersReady(true);
+        // Files known too: right after a load the stream 404s until they are,
+        // and the browser gives up on the video for good.
+        if (torrent.numPeers >= 1 && (torrent.files?.length ?? 0) > 0) setPeersReady(true);
       } catch {}
     };
 
@@ -581,9 +619,54 @@ export default function WatchPage({ params }: WatchPageProps) {
         resumeFrom={resumeFrom}
         onProgress={handleProgress}
         nextLabel={nextLabel}
-        onNext={goNext}
+        onNext={goNext ? () => setAskKeep(true) : undefined}
+        prevLabel={prevLabel}
+        onPrev={goPrev}
         onBufferHealth={handleBufferHealth}
       />
+
+      {/* Next: keep the episode just watched, or delete it once the next one is under way. */}
+      {askKeep && goNext && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Keep ${thisCode}?`}
+          onClick={() => setAskKeep(false)}
+          onKeyDown={(e) => e.key === "Escape" && setAskKeep(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-zinc-900 p-6 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-lg font-semibold text-zinc-100">Keep {thisCode}?</p>
+            <p className="mt-1 text-sm text-zinc-400">
+              Delete frees the space once you&apos;re into {nextLabel ?? "the next one"}.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  setAskKeep(false);
+                  goNext(false);
+                }}
+                className="h-12 rounded-full bg-zinc-800 text-zinc-100 hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              >
+                Keep
+              </button>
+              <button
+                autoFocus
+                onClick={() => {
+                  setAskKeep(false);
+                  goNext(true);
+                }}
+                className="h-12 rounded-full bg-purple-600 text-white hover:bg-purple-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Something else is still using disk. Ask before reclaiming it. */}
       {purgeCandidates.length > 0 && !showClearPrompt && (

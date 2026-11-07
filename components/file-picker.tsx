@@ -317,17 +317,6 @@ export function FilePicker({
       updatedAt: r?.updatedAt,
     };
   });
-  const seriesCurrent = (() => {
-    const w = seriesEpisodes
-      .map((e, idx) => ({ e, idx }))
-      .filter(({ e }) => e.state === "watching")
-      .sort((a, b) => (b.e.updatedAt ?? 0) - (a.e.updatedAt ?? 0))[0];
-    if (w) return w.idx;
-    const first = seriesEpisodes.findIndex((e) => e.state === "unwatched");
-    return first < 0 ? 0 : first;
-  })();
-  const nextFile = videoFiles[seriesCurrent + 1];
-  const watchedOnDisk = videoFiles.filter((f) => watch[f.index]?.finished && f.cachedBytes > 0);
 
   // "Download ahead" runs past the last episode that is on disk or pinned.
   const lastHeld = videoFiles.reduce(
@@ -448,30 +437,9 @@ export function FilePicker({
             </div>
 
             <SeriesBar
+              id={infoHash || magnet}
               episodes={seriesEpisodes}
               onPlay={(key) => handlePlay(Number(key))}
-              next={
-                nextFile
-                  ? {
-                      key: String(nextFile.index),
-                      code: episodeCode(nextFile.name) ?? nextFile.name,
-                      status: downloads.status(rowOf(nextFile)),
-                      onDownload: () => downloads.start(String(nextFile.index), targetOf(nextFile)),
-                      onTogglePause: () => downloads.togglePause(rowOf(nextFile)),
-                    }
-                  : undefined
-              }
-              watchedBytes={watchedOnDisk.reduce((n, f) => n + f.cachedBytes, 0)}
-              onClearWatched={async () => {
-                for (const f of watchedOnDisk) {
-                  await fetch(
-                    `/api/torrent/${infoHash}/file/${f.index}/cache?path=${encodeURIComponent(f.path)}`,
-                    { method: "DELETE" }
-                  ).catch(() => {});
-                }
-                await fetchFiles();
-                await downloads.refresh();
-              }}
             />
 
             {/* Scroll container with TV-friendly buttons */}

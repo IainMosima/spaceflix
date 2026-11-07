@@ -81,7 +81,8 @@ export async function POST(req: NextRequest) {
     .filter((i) => i.id !== current?.id && (usage.get(i.id) ?? 0) > 0 && watched(i))
     .map((i) => toCandidate(i, usage.get(i.id) ?? 0));
 
-  // Same-folder siblings go without asking; a loose item has no siblings.
+  // Episodes of the same show (same folder) are never swept here: pressing Next
+  // asks Keep / Delete for those. Only other titles are candidates.
   const siblings = current?.folderId
     ? cachedOthers.filter(
         (c) =>
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
   const auto = getSettings().autoPurgePrevious === true;
   const confirmed = body?.confirm === true;
 
-  const purgedNow = [...siblings, ...(auto || confirmed ? rest : [])];
+  const purgedNow = auto || confirmed ? rest : [];
   const reclaimed = await purge(purgedNow);
 
   return NextResponse.json({

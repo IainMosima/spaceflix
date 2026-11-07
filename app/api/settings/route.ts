@@ -13,6 +13,9 @@ const UpdateSettingsSchema = z.object({
   autoPurgePrevious: z.boolean().optional(),
   prefetchNextEpisode: z.boolean().optional(),
   prefetchMinBufferSeconds: z.number().min(0).max(3600).optional(),
+  purgePreviousMode: z.enum(["watched", "downloaded"]).optional(),
+  purgePreviousMinutes: z.number().int().min(1).max(60).optional(),
+  purgePreviousPercent: z.number().int().min(1).max(100).optional(),
 });
 
 // GET /api/settings - Get engine settings

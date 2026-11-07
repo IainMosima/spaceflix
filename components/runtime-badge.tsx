@@ -17,13 +17,13 @@ export function RuntimeBadge() {
 
   if (docker === null) return null;
   const Icon = docker ? Container : Laptop;
-  const label = docker ? "Docker" : "On this Mac";
+  const label = docker ? "Docker" : "On this PC";
 
   return (
     <Link
       href="/settings#runtime"
       className="h-10 flex items-center gap-2 rounded-full px-3 text-xs text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-      aria-label={`Running ${docker ? "in Docker" : "on this Mac"} — see how to manage it`}
+      aria-label={`Running ${docker ? "in Docker" : "on this PC"} — see how to manage it`}
       title="How it's running"
     >
       <Icon className="h-4 w-4" />

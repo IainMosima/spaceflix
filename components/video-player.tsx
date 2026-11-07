@@ -14,6 +14,7 @@ import {
   Subtitles,
   AlertCircle,
   SkipForward,
+  SkipBack,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -44,6 +45,9 @@ interface VideoPlayerProps {
   onProgress?: (positionSec: number, durationSec: number) => void;
   /** Label for the next episode, e.g. "S03E05". Absent hides the button. */
   nextLabel?: string;
+  /** Previous episode (never asks, never deletes anything). */
+  prevLabel?: string;
+  onPrev?: () => void;
   /** Jump to the next episode. Absent hides the button. */
   onNext?: () => void;
   /**
@@ -74,6 +78,8 @@ export function VideoPlayer({
   onProgress,
   nextLabel,
   onNext,
+  prevLabel,
+  onPrev,
   onBufferHealth,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -248,6 +254,7 @@ export function VideoPlayer({
 
   // Show controls on mouse move
   const handleMouseMove = useCallback(() => {
+    if (prefersAlwaysOnControls) return;
     setShowControls(true);
 
     if (controlsTimeoutRef.current) {
@@ -255,13 +262,11 @@ export function VideoPlayer({
     }
 
     controlsTimeoutRef.current = setTimeout(() => {
-      // Read the video, not isPlaying: the closure is stale if play/pause
-      // happened after the timer was armed (e.g. OK pressed on the remote).
-      if (videoRef.current && !videoRef.current.paused) {
+      if (isPlaying) {
         setShowControls(false);
       }
     }, 3000);
-  }, []);
+  }, [isPlaying, prefersAlwaysOnControls]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -279,12 +284,11 @@ export function VideoPlayer({
     // No need for media query listener since we only check user agent
   }, []);
 
-  // Paused: keep controls up. Playing: start the idle-hide timer, so a TV
-  // (no mouse) doesn't keep the bars over the picture after autoplay/resume.
   useEffect(() => {
-    if (isPlaying) handleMouseMove();
-    else setShowControls(true);
-  }, [isPlaying, handleMouseMove]);
+    if (prefersAlwaysOnControls) {
+      setShowControls(true);
+    }
+  }, [prefersAlwaysOnControls]);
 
   // Auto-focus container on mount for TV remote to work immediately
   useEffect(() => {
@@ -791,21 +795,13 @@ export function VideoPlayer({
     const key = e.key?.toLowerCase() || "";
     const keyCode = e.keyCode || e.which || 0;
 
-    // Any key wakes the controls and restarts the idle timer. When they were
-    // hidden, OK only reveals them so a remote user doesn't pause by accident.
-    handleMouseMove();
-    if (!showControls && keyCode === 13) {
-      e.preventDefault();
-      return;
-    }
-
     // Smart TV Remote KeyCodes (HbbTV/VIDAA/Tizen/webOS standard)
     // Back: 461, Play: 415, Pause: 411/19, Stop: 413
     // Rewind: 412, FastForward: 417, PlayPause: 503/10252
     // Navigation: 37(Left), 38(Up), 39(Right), 40(Down), 13(OK/Enter)
 
-    // Handle by keyCode first (more reliable on Smart TVs). Some VIDAA builds
-    // send Stop as key "MediaStop" with a different keyCode.
+    // Handle by keyCode first (more reliable on Smart TVs)
+    // Some VIDAA builds send Stop as key "MediaStop" with a different keyCode.
     switch (key === "mediastop" ? 413 : keyCode) {
       // Navigation
       case 37: // Left arrow
@@ -946,7 +942,7 @@ export function VideoPlayer({
         skip(10);
         break;
     }
-  }, [isFullscreen, onClose, onStop, duration, cycleSubtitles, handleMouseMove, showControls]);
+  }, [isFullscreen, onClose, onStop, duration, cycleSubtitles]);
 
   const seekTo = (time: number) => {
     const video = videoRef.current;
@@ -1099,11 +1095,12 @@ export function VideoPlayer({
       role="application"
       aria-label={title ? `${title} player` : "Video player"}
       onMouseMove={handleMouseMove}
-      onMouseLeave={() => isPlaying && setShowControls(false)}
+      onMouseLeave={() => isPlaying && !prefersAlwaysOnControls && setShowControls(false)}
       onPointerDown={() => {
         setShowControls(true);
         containerRef.current?.focus();
       }}
+      onKeyDown={(e) => handleKeyDown(e.nativeEvent)}
     >
       {isUsingFallbackStream && (
         <div className="absolute top-5 right-5 z-20 flex items-center gap-2 rounded-full bg-zinc-900/70 px-4 py-2 text-xs font-medium text-white backdrop-blur">
@@ -1575,6 +1572,25 @@ export function VideoPlayer({
 
             {/* Next episode — sits with the right-hand cluster, and stays on
                 TV where a remote has no other way to advance an episode. */}
+            {onPrev && (
+              <button
+                {...handleTVClick(() => onPrev())}
+                aria-label={prevLabel ? `Previous episode: ${prevLabel}` : "Previous episode"}
+                title={prevLabel ? `Previous: ${prevLabel}` : "Previous episode"}
+                className={cn(
+                  "flex items-center justify-center gap-2 text-white rounded-full cursor-pointer",
+                  "hover:bg-white/10 active:bg-white/30",
+                  "focus:bg-white/20 focus:ring-2 focus:ring-white focus:outline-none",
+                  prefersAlwaysOnControls ? "h-14 px-5 text-lg" : "h-10 px-3 text-sm"
+                )}
+              >
+                <SkipBack className={prefersAlwaysOnControls ? "h-6 w-6" : "h-5 w-5"} />
+                {prevLabel && (
+                  <span className="hidden sm:inline tabular-nums">{prevLabel}</span>
+                )}
+              </button>
+            )}
+
             {onNext && (
               <button
                 {...handleTVClick(() => onNext())}

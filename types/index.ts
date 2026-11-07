@@ -26,6 +26,10 @@ export interface EngineSettings {
   prefetchNextEpisode?: boolean;
   /** Seconds of buffer the current episode needs before a prefetch starts. */
   prefetchMinBufferSeconds?: number;
+  /** After Next, delete the previous episode once the next is watched N min or P% downloaded. */
+  purgePreviousMode?: "watched" | "downloaded";
+  purgePreviousMinutes?: number;
+  purgePreviousPercent?: number;
 }
 
 // Search result types

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, type MutableRefObject } from "react";
 import { useRouter } from "next/navigation";
-import { episodeCode, sortByEpisode, sortFolderItems } from "@/lib/episode-order";
+import { episodeCode, showName, sortByEpisode, sortFolderItems } from "@/lib/episode-order";
 import { watchUrl, VIDEO_EXT } from "@/lib/watch-url";
 import type { LibraryItemWithUsage } from "@/types";
 
@@ -36,6 +36,15 @@ function labelFor(name: string): string {
   return stem.length > 18 ? `${stem.slice(0, 18)}…` : stem;
 }
 
+/** Player title for the next episode: "Show · S01E08", keeping the show's name. */
+function nextTitle(currentTitle: string, nextName: string): string {
+  const code = episodeCode(nextName);
+  // showName("S01E05") falls back to "S01E05" itself — no show name to keep then.
+  const show = showName(currentTitle);
+  if (code && show && !episodeCode(show)) return `${show} · ${code}`;
+  return labelFor(nextName);
+}
+
 export function useNextEpisode(
   infoHash: string,
   fileIndex: number,
@@ -47,6 +56,7 @@ export function useNextEpisode(
 ) {
   const router = useRouter();
   const [target, setTarget] = useState<NextTarget | null>(null);
+  const [prevTarget, setPrevTarget] = useState<NextTarget | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   // What goNext deletes once the episode is done: the pack file's cache path, or
   // the folder item's id.
@@ -55,8 +65,12 @@ export function useNextEpisode(
   useEffect(() => {
     let cancelled = false;
     currentRef.current = {};
+    setPrevTarget(null);
 
+    let tries = 0;
+    let packLoaded = false;
     const resolve = async () => {
+      tries++;
       // 1. Season pack: is there a later file inside this same torrent?
       try {
         const res = await fetch("/api/torrents");
@@ -67,6 +81,7 @@ export function useNextEpisode(
             (t: { infoHash?: string }) =>
               t.infoHash?.toLowerCase() === infoHash.toLowerCase()
           );
+          packLoaded = (torrent?.files?.length ?? 0) > 0;
           const videos: TorrentFile[] = (torrent?.files ?? []).filter(
             (f: TorrentFile) => VIDEO_EXT.test(f.name)
           );
@@ -77,6 +92,12 @@ export function useNextEpisode(
             if (!cancelled) currentRef.current = { path };
             const ordered = sortByEpisode(videos, (f) => f.name);
             const at = ordered.findIndex((f) => f.index === fileIndex);
+            const prev = at > 0 ? ordered[at - 1] : undefined;
+            if (!cancelled) {
+              setPrevTarget(
+                prev ? { kind: "file", fileIndex: prev.index, name: prev.name, length: prev.length ?? 0 } : null
+              );
+            }
             if (at !== -1 && at + 1 < ordered.length) {
               const next = ordered[at + 1];
               if (!cancelled) {
@@ -111,7 +132,10 @@ export function useNextEpisode(
         );
         if (current && !cancelled) currentRef.current = { itemId: current.id };
         if (!current?.folderId) {
-          if (!cancelled) setTarget(null);
+          // Right after a restart the torrent may still be loading: its file
+          // list (and so the next episode) shows up a few seconds later.
+          if (!packLoaded && tries < 20 && !cancelled) setTimeout(resolve, 3000);
+          else if (!cancelled) setTarget(null);
           return;
         }
 
@@ -120,7 +144,11 @@ export function useNextEpisode(
         );
         const at = siblings.findIndex((i) => i.id === current.id);
         const next = at !== -1 ? siblings[at + 1] : undefined;
-        if (!cancelled) setTarget(next ? { kind: "item", item: next } : null);
+        const prev = at > 0 ? siblings[at - 1] : undefined;
+        if (!cancelled) {
+          setTarget(next ? { kind: "item", item: next } : null);
+          setPrevTarget(prev ? { kind: "item", item: prev } : null);
+        }
       } catch {
         if (!cancelled) setTarget(null);
       }
@@ -132,90 +160,106 @@ export function useNextEpisode(
     };
   }, [infoHash, fileIndex]);
 
-  const goNext = useCallback(async () => {
-    if (!target) return;
+  /**
+   * Move to another episode. Next marks this one watched and, only if the user
+   * chose to, schedules deleting it (after the Settings rule: watched N minutes
+   * of the next one, or it being P% downloaded). Previous never marks or deletes.
+   */
+  const go = useCallback(
+    async (to: NextTarget, opts: { forward: boolean; deletePrevious: boolean }) => {
+      // Stop the current episode right away, so nothing plays over the switch.
+      document.querySelector("video")?.pause();
 
-    // 1. Mark this episode watched. finished:true bypasses the store's 30s floor.
-    const last = lastPositionRef.current;
-    const durationSec = last?.durationSec || 1;
-    try {
-      await fetch("/api/progress", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          infoHash,
-          fileIndex,
-          positionSec: last?.positionSec || durationSec,
-          durationSec,
-          title,
-          finished: true,
-        }),
-      });
-    } catch {
-      // Never let progress tracking block Next.
-    }
-    // Stop the page's unmount flush re-posting this position as unfinished.
-    lastPositionRef.current = null;
+      if (opts.forward) {
+        // Mark this episode watched. finished:true bypasses the store's 30s floor.
+        const last = lastPositionRef.current;
+        const durationSec = last?.durationSec || 1;
+        try {
+          await fetch("/api/progress", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              infoHash,
+              fileIndex,
+              positionSec: last?.positionSec || durationSec,
+              durationSec,
+              title,
+              finished: true,
+            }),
+          });
+        } catch {
+          // Never let progress tracking block Next.
+        }
+        // Stop the page's unmount flush re-posting this position as unfinished.
+        lastPositionRef.current = null;
+      }
 
-    // 2. Drop the just-watched episode's bytes — the CURRENT file/item, never the
-    // next one. In a pack the worker does it itself the moment the next episode
-    // starts streaming (its switch purge), so nothing to send. A folder item is
-    // its own torrent: delete it a little later, server-side, so wiping it can't
-    // compete with loading the next one.
-    const { itemId } = currentRef.current;
-    if (target.kind === "item" && itemId) {
-      fetch(`/api/library/${itemId}/cache?after=20`, { method: "DELETE" }).catch(() => {});
-    }
+      const { path, itemId } = currentRef.current;
+      const scheduleDelete = (nextHash: string, nextFile: number) => {
+        if (!opts.deletePrevious) return;
+        const url =
+          to.kind === "file"
+            ? `/api/torrent/${infoHash}/file/${fileIndex}/cache?whenReady=1&next=${nextFile}${
+                path ? `&path=${encodeURIComponent(path)}` : ""
+              }`
+            : itemId
+              ? `/api/library/${itemId}/cache?whenReady=${nextHash}&file=${nextFile}`
+              : null;
+        if (url) fetch(url, { method: "DELETE" }).catch(() => {});
+      };
 
-    // 3. Go.
-    if (target.kind === "file") {
-      router.replace(
-        watchUrl(infoHash, labelFor(target.name), target.fileIndex, returnTo)
-      );
-      return;
-    }
+      if (to.kind === "file") {
+        scheduleDelete(infoHash, to.fileIndex);
+        router.replace(watchUrl(infoHash, nextTitle(title, to.name), to.fileIndex, returnTo));
+        return;
+      }
 
-    // A separate torrent has to be added before the player can stream it.
-    // When its hash is known, start the add and move on right away: the next
-    // episode's own page shows "Finding peers…" while the add runs (it keeps
-    // going after navigation), instead of a frozen screen here.
-    const knownHash =
-      target.item.infoHash?.toLowerCase() ??
-      target.item.magnet.match(/btih:([a-f0-9]{40})/i)?.[1]?.toLowerCase();
-    if (knownHash) {
-      fetch("/api/torrent/files", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ magnet: target.item.magnet }),
-      }).catch(() => {});
-      router.replace(
-        watchUrl(knownHash, target.item.name, target.item.fileIndex ?? 0, returnTo)
-      );
-      return;
-    }
+      // A separate torrent has to be added before the player can stream it.
+      // When its hash is known, start the add and move on right away: that
+      // episode's own page shows "Finding peers…" (and loads it itself).
+      const knownHash =
+        to.item.infoHash?.toLowerCase() ??
+        to.item.magnet.match(/btih:([a-f0-9]{40})/i)?.[1]?.toLowerCase();
+      if (knownHash) {
+        const file = to.item.fileIndex ?? 0;
+        scheduleDelete(knownHash, file);
+        fetch("/api/torrent/files", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ magnet: to.item.magnet }),
+        }).catch(() => {});
+        router.replace(watchUrl(knownHash, nextTitle(title, to.item.name), file, returnTo));
+        return;
+      }
 
-    // Hash unknown (old base32 magnet): wait for the add to learn it.
-    setIsLoading(true);
-    try {
-      const res = await fetch("/api/torrent/files", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ magnet: target.item.magnet }),
-      });
-      if (!res.ok) throw new Error("Failed to load next episode");
-      const data = await res.json();
-      router.replace(
-        watchUrl(
-          data.infoHash,
-          target.item.name,
-          target.item.fileIndex ?? data.mainVideoIndex ?? 0,
-          returnTo
-        )
-      );
-    } catch {
-      setIsLoading(false);
-    }
-  }, [target, infoHash, fileIndex, returnTo, router, lastPositionRef, title]);
+      // Hash unknown (old base32 magnet): wait for the add to learn it.
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/torrent/files", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ magnet: to.item.magnet }),
+        });
+        if (!res.ok) throw new Error("Failed to load episode");
+        const data = await res.json();
+        const file = to.item.fileIndex ?? data.mainVideoIndex ?? 0;
+        scheduleDelete(String(data.infoHash).toLowerCase(), file);
+        router.replace(watchUrl(data.infoHash, nextTitle(title, to.item.name), file, returnTo));
+      } catch {
+        setIsLoading(false);
+      }
+    },
+    [infoHash, fileIndex, returnTo, router, lastPositionRef, title]
+  );
+
+  const goNext = useCallback(
+    (deletePrevious: boolean) => target && go(target, { forward: true, deletePrevious }),
+    [target, go]
+  );
+  const goPrev = useCallback(
+    () => prevTarget && go(prevTarget, { forward: false, deletePrevious: false }),
+    [prevTarget, go]
+  );
 
   return {
     nextLabel: target
@@ -226,6 +270,10 @@ export function useNextEpisode(
     /** Its size on disk, so the caller can check there's room before pulling it. */
     nextFileSize: target?.kind === "file" ? target.length : undefined,
     goNext: target ? goNext : undefined,
+    prevLabel: prevTarget
+      ? labelFor(prevTarget.kind === "file" ? prevTarget.name : prevTarget.item.name)
+      : undefined,
+    goPrev: prevTarget ? goPrev : undefined,
     isLoading,
   };
 }

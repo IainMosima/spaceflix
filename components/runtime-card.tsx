@@ -11,6 +11,7 @@ const COMMANDS = {
     ["make c-restart", "Restart the container"],
     ["make c-logs", "See what it's doing"],
     ["make c-stop", "Stop it"],
+    ["make c-run", "Start it again (after turning off)"],
     ["make run", "Run on the Mac instead (after c-stop)"],
   ],
   mac: [

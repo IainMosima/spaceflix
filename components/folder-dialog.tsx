@@ -158,17 +158,6 @@ export function FolderDialog({
       updatedAt: st.record?.updatedAt,
     };
   });
-  const currentIdx = (() => {
-    const watching = seriesEpisodes
-      .map((e, idx) => ({ e, idx }))
-      .filter(({ e }) => e.state === "watching")
-      .sort((a, b) => (b.e.updatedAt ?? 0) - (a.e.updatedAt ?? 0))[0];
-    if (watching) return watching.idx;
-    const first = seriesEpisodes.findIndex((e) => e.state === "unwatched");
-    return first < 0 ? 0 : first;
-  })();
-  const nextItem: LibraryItemWithUsage | undefined = ordered[currentIdx + 1];
-  const watchedCached = ordered.filter((i) => statusFor(i).state === "watched" && i.cachedBytes > 0);
 
   // "Download ahead" runs from the first episode (in episode order) not yet watched.
   const nextUnwatched = ordered.findIndex((i) => statusFor(i).state !== "watched");
@@ -401,35 +390,11 @@ export function FolderDialog({
 
         {seriesEpisodes.length > 1 && (
           <SeriesBar
+            id={folder.id}
             episodes={seriesEpisodes}
             onPlay={(id) => {
               const item = ordered.find((i) => i.id === id);
               if (item) onPlay(item);
-            }}
-            next={
-              nextItem
-                ? {
-                    key: nextItem.id,
-                    code: episodeCode(nextItem.name) ?? nextItem.name,
-                    status: downloads.status(rowOf(nextItem)),
-                    onDownload: () => startDownload(nextItem),
-                    onTogglePause: () => downloads.togglePause(rowOf(nextItem)),
-                  }
-                : undefined
-            }
-            watchedBytes={watchedCached.reduce((n, i) => n + i.cachedBytes, 0)}
-            onClearWatched={async () => {
-              let freed = 0;
-              for (const i of watchedCached) {
-                try {
-                  await onClearItemCache(i.id);
-                  freed += i.cachedBytes;
-                } catch {
-                  // keep going with the rest
-                }
-              }
-              toast.success(`Freed ${(freed / 1024 ** 3).toFixed(freed >= 10 * 1024 ** 3 ? 0 : 1)} GB`);
-              await downloads.refresh();
             }}
           />
         )}

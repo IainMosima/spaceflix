@@ -10,7 +10,10 @@ services:
       - "9191:9191" # video streams (VLC, players)
       - "6881:6881/tcp" # torrent peers can connect in → faster downloads
       - "6881:6881/udp"
-    restart: unless-stopped
+    # on-failure, not unless-stopped: the in-app power menu exits 0 for "Turn off"
+    # (container stays off) and non-zero for "Restart" (Docker brings it back,
+    # as it does after a crash).
+    restart: on-failure
     volumes:
       # Movies, library and history — always on the computer, never inside the container.
       - ${MEDIA_ROOT:-./data}:/app/data

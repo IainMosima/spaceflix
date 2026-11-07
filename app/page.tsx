@@ -817,9 +817,12 @@ function LibraryView() {
           onClose={closeFolderCard}
           folder={openFolder}
           items={items.filter((i) => i.folderId === openFolder.id)}
-          onPlay={(item) =>
-            handlePlayMagnet(item.magnet, item.name, { itemId: item.id })
-          }
+          onPlay={(item) => {
+            // "VisionQuest · S01E05", not just "S01E05", at the top of the player.
+            const code = episodeCode(item.name);
+            const title = code ? `${openFolder.name} · ${code}` : item.name;
+            handlePlayMagnet(item.magnet, title, { itemId: item.id });
+          }}
           onOpenListing={(item) => handleOpenListing(item)}
           onVLC={handleVLC}
           onAddItem={(input) => addItem({ ...input, folderId: openFolder.id })}

@@ -12,7 +12,7 @@ function inDocker(): boolean {
 // GET /api/system — what the power menu can offer here.
 export function GET() {
   const docker = inDocker();
-  return NextResponse.json({ docker, canTurnOff: !docker });
+  return NextResponse.json({ docker, canTurnOff: true });
 }
 
 // POST /api/system {action: "stop" | "restart"}
@@ -22,10 +22,9 @@ export function GET() {
 // usual manual start) that waits a few seconds so the ports are free; its
 // output goes to data/server.log.
 //
-// Docker: the container's restart policy (unless-stopped) brings the app back
-// whenever it exits, so restart = clean exit and nothing else (a second copy
-// inside the container would fight over the ports), and "turn off" can't stick,
-// so it's refused — stop the container instead.
+// Docker: no second copy (it would fight over the ports). The compose restart
+// policy is on-failure, so the exit code decides: restart = exit 1 and Docker
+// brings the container back; turn off = exit 0 and the container stays stopped.
 //
 // ponytail: no auth, like the rest of this LAN-only app; the UI asks first.
 export async function POST(req: NextRequest) {
@@ -35,12 +34,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "action must be stop or restart" }, { status: 400 });
   }
   const docker = inDocker();
-  if (docker && action === "stop") {
-    return NextResponse.json(
-      { error: "docker", message: "In Docker the app restarts itself; stop the container instead." },
-      { status: 409 }
-    );
-  }
 
   // Answer first; shut down just after, so the browser gets its response.
   setTimeout(async () => {
@@ -61,7 +54,7 @@ export async function POST(req: NextRequest) {
       console.error("Shutdown error:", e);
     } finally {
       console.log(action === "restart" ? "Restarting Spaceflix…" : "Spaceflix turned off from the app.");
-      process.exit(0);
+      process.exit(docker && action === "restart" ? 1 : 0);
     }
   }, 300);
 

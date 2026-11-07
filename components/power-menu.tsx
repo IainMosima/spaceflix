@@ -13,14 +13,18 @@ export function PowerMenu() {
   const [confirm, setConfirm] = useState<Action | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [action, setAction] = useState<Action | null>(null);
-  // In Docker the container brings the app straight back, so only Restart is offered.
   const [canTurnOff, setCanTurnOff] = useState(true);
+  const [docker, setDocker] = useState(false);
 
   useEffect(() => {
     if (confirm === null) return;
     fetch("/api/system")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setCanTurnOff(d.canTurnOff !== false))
+      .then((d) => {
+        if (!d) return;
+        setCanTurnOff(d.canTurnOff !== false);
+        setDocker(d.docker === true);
+      })
       .catch(() => {});
   }, [confirm]);
 
@@ -140,7 +144,9 @@ export function PowerMenu() {
           {phase === "stopped" && (
             <>
               <Power className="h-10 w-10 text-zinc-500" />
-              <p className="text-lg text-zinc-100">Spaceflix is off</p>
+              <p className="text-lg text-zinc-100">
+                {docker ? "Spaceflix is off — the container is stopped." : "Spaceflix is off"}
+              </p>
             </>
           )}
           {phase === "slow" && (
