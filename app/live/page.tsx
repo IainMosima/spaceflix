@@ -142,6 +142,7 @@ export default function LivePage() {
           onOpenChange={(o) => !o && setEditing(undefined)}
           channel={editing ?? undefined}
           onSave={save}
+          templates={channels ?? []}
         />
       )}
     </main>

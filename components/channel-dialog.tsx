@@ -47,10 +47,18 @@ interface ChannelDialogProps {
   /** Present = edit, absent = add. */
   channel?: Channel;
   onSave: (channel: Omit<Channel, "id">) => Promise<void>;
+  /** Saved channels offered as a "Copy from" template when adding. */
+  templates?: Channel[];
 }
 
 /** Mount with a `key` per channel so the form starts from that channel's values. */
-export function ChannelDialog({ open, onOpenChange, channel, onSave }: ChannelDialogProps) {
+export function ChannelDialog({
+  open,
+  onOpenChange,
+  channel,
+  onSave,
+  templates = [],
+}: ChannelDialogProps) {
   // Only mounted after a click, so reading localStorage here is safe (no SSR).
   const [initial] = useState(() => readDraft(channel) ?? fromChannel(channel));
   const [name, setName] = useState(initial.name);
@@ -67,6 +75,14 @@ export function ChannelDialog({ open, onOpenChange, channel, onSave }: ChannelDi
     setName(clean.name);
     setUrl(clean.url);
     setRows(clean.rows);
+    setError(null);
+  };
+  // Template: take its link and headers, keep whatever name is typed.
+  const copyFrom = (id: string) => {
+    const t = templates.find((c) => c.id === id);
+    if (!t) return;
+    setUrl(t.url);
+    setRows(fromChannel(t).rows);
     setError(null);
   };
   const [saving, setSaving] = useState(false);
@@ -107,6 +123,28 @@ export function ChannelDialog({ open, onOpenChange, channel, onSave }: ChannelDi
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {!channel && templates.length > 0 && (
+            <div>
+              <label htmlFor="ch-template" className="text-sm text-zinc-400 mb-2 block">
+                Copy from
+              </label>
+              <select
+                id="ch-template"
+                value=""
+                onChange={(e) => copyFrom(e.target.value)}
+                className="w-full h-9 rounded-md border border-zinc-700 bg-zinc-800 px-3 text-sm text-zinc-200"
+              >
+                <option value="">
+                  Start blank, or pick a channel to copy its link and headers…
+                </option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label htmlFor="ch-name" className="text-sm text-zinc-400 mb-2 block">
               Name
