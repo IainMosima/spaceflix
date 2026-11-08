@@ -12,6 +12,8 @@ DEF="$MOVIES/Spaceflix"
 # The folder picked in Settings, else this system's movie folder. Override: DATA=/path ./spaceflix.sh
 DATA=${DATA:-$(cat "$HOME/.spaceflix/data-dir" 2>/dev/null || echo "$DEF")}
 export HOST_LAN_IP="$IP" MEDIA_ROOT="$DATA" HOST_DATA_DIR="$DATA" HOST_HOME="$HOME"
+# Linux: files written into the movies folder belong to you, not root.
+[ "$(uname -s)" = Linux ] && export SPACEFLIX_UID="$(id -u)" SPACEFLIX_GID="$(id -g)"
 AWAKE_PID="$HOME/.spaceflix/caffeinate.pid"
 
 docker_up() {
