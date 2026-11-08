@@ -32,7 +32,7 @@ import { lgCompat, LG_TIP } from "@/lib/tv-compat";
 import { useLgCheck } from "@/hooks/use-lg-check";
 import { detectCategory, resolveItemCategory } from "@/lib/category";
 import { watchUrl } from "@/lib/watch-url";
-import { episodeCode, sortFolderItems } from "@/lib/episode-order";
+import { episodeCode } from "@/lib/episode-order";
 import { cn } from "@/lib/utils";
 import { extractInfoHashFromMagnet } from "@/lib/torrent-cache-actions";
 import { useVlcCopy } from "@/hooks/use-vlc-copy";
@@ -704,12 +704,6 @@ function LibraryView() {
                   key={folder.id}
                   folder={folder}
                   onOpen={() => openFolderCard(folder.id)}
-                  onVLC={() => {
-                    // Same order as inside the folder; next unwatched, else the first.
-                    const list = sortFolderItems(items.filter((i) => i.folderId === folder.id));
-                    const next = list.find((i) => statusOf(i).state !== "watched") ?? list[0];
-                    if (next) handleVLC(next);
-                  }}
                   watchedCount={
                     items.filter(
                       (i) => i.folderId === folder.id && statusOf(i).state === "watched"
