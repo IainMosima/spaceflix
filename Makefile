@@ -50,6 +50,10 @@ else
   # Windows: D:\Movies\Spaceflix when there's a D: drive, else ~\Videos\Spaceflix.
   DEFAULT_DATA := $(if $(wildcard /d/),/d/Movies/Spaceflix,$(HOME)/Videos/Spaceflix)
 endif
+# No Movies/Videos folder (some Linux/Windows setups) → Downloads/Spaceflix.
+ifeq (,$(wildcard $(dir $(DEFAULT_DATA))))
+  DEFAULT_DATA := $(HOME)/Downloads/Spaceflix
+endif
 # The folder picked in Settings (saved in ~/.spaceflix/data-dir, shared by the
 # Mac app and Docker), else an older per-project choice, else an existing
 # ./data (installs from before the per-system default), else the system's

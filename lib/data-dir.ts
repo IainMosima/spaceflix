@@ -63,12 +63,11 @@ function pointerPath(): string {
  * · Linux ~/Videos/Spaceflix.
  */
 export function defaultMoviesDir(): string {
+  if (process.platform === "win32" && existsSync("D:\\")) return "D:\\Movies\\Spaceflix";
+  // The system's movie folder (Mac Movies, else Videos), else Downloads.
   const home = homedir();
-  if (process.platform === "darwin") return join(home, "Movies", "Spaceflix");
-  if (process.platform === "win32") {
-    return existsSync("D:\\") ? "D:\\Movies\\Spaceflix" : join(home, "Videos", "Spaceflix");
-  }
-  return join(home, "Videos", "Spaceflix");
+  const movies = join(home, process.platform === "darwin" ? "Movies" : "Videos");
+  return join(existsSync(movies) ? movies : join(home, "Downloads"), "Spaceflix");
 }
 
 function readPointer(path: string): string | null {

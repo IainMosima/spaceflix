@@ -5,7 +5,10 @@ Set-Location $PSScriptRoot
 
 # Docker wants forward slashes; the app compares paths that way too.
 $homeDir = $HOME -replace '\\', '/'
-$default = if (Test-Path 'D:\') { 'D:/Movies/Spaceflix' } else { "$homeDir/Videos/Spaceflix" }
+# D: drive if there is one, else Videos on C:, else Downloads.
+$default = if (Test-Path 'D:\') { 'D:/Movies/Spaceflix' }
+  elseif (Test-Path "$HOME\Videos") { "$homeDir/Videos/Spaceflix" }
+  else { "$homeDir/Downloads/Spaceflix" }
 $pointer = Join-Path $HOME '.spaceflix\data-dir'
 $data = if ($env:DATA) { $env:DATA } elseif (Test-Path $pointer) { (Get-Content $pointer -Raw).Trim() } else { $default }
 $data = $data -replace '\\', '/'

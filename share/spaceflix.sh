@@ -4,9 +4,11 @@
 cd "$(dirname "$0")" || exit 1
 
 case "$(uname -s)" in
-  Darwin) IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null); DEF="$HOME/Movies/Spaceflix" ;;
-  *) IP=$(hostname -I 2>/dev/null | awk '{print $1}'); DEF="$HOME/Videos/Spaceflix" ;;
+  Darwin) IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null); MOVIES="$HOME/Movies" ;;
+  *) IP=$(hostname -I 2>/dev/null | awk '{print $1}'); MOVIES="$HOME/Videos" ;;
 esac
+[ -d "$MOVIES" ] || MOVIES="$HOME/Downloads"
+DEF="$MOVIES/Spaceflix"
 # The folder picked in Settings, else this system's movie folder. Override: DATA=/path ./spaceflix.sh
 DATA=${DATA:-$(cat "$HOME/.spaceflix/data-dir" 2>/dev/null || echo "$DEF")}
 export HOST_LAN_IP="$IP" MEDIA_ROOT="$DATA" HOST_DATA_DIR="$DATA" HOST_HOME="$HOME"
