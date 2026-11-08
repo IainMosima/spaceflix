@@ -35,7 +35,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "path is required" }, { status: 400 });
     }
 
-    const activeDir = setDataDir(path);
+    let activeDir: string;
+    try {
+      activeDir = setDataDir(path);
+    } catch (e) {
+      // A folder that can't be used is the user's choice, not a server fault.
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Can't use that folder" }, { status: 400 });
+    }
     await getTorrentEngine().restartWorker();
 
     return NextResponse.json({ success: true, activeDir: toHostPath(activeDir) });

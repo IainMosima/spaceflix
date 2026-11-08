@@ -148,7 +148,7 @@ export function setDataDir(newPath: string): string {
   const hostPath = absHostPath(newPath);
   const local = toLocalPath(hostPath);
   if (inDocker() && local === hostPath) {
-    throw new Error("In Docker, pick a folder inside your home folder — that's what the container can reach.");
+    throw new Error("Docker can't reach that folder. Pick one in your home folder, or on a drive listed under This PC.");
   }
   mkdirSync(local, { recursive: true });
   const pointer = pointerPath();

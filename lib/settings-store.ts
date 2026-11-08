@@ -10,8 +10,10 @@ function getSettingsPath(): string {
 
 const DEFAULT_SETTINGS: EngineSettings = {
   downloadLimit: -1,
-  uploadLimit: -1,
-  maxConnections: 55,
+  // Same as the torrent worker's defaults: never upload (slow home internet
+  // chokes on it), 10 connections per torrent.
+  uploadLimit: 0,
+  maxConnections: 10,
   cleanupDelaySeconds: 30,
   prebufferSeconds: 90, // wait up to 90s for the initial safety buffer
   bufferSizeMB: 200, // cache ~200MB so TVs can coast through peer stalls
