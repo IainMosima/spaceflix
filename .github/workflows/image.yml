@@ -1,0 +1,34 @@
+# Every push to main builds the app image for Intel/AMD and Apple/ARM machines
+# and publishes it to Docker Hub as mosimaiain/movie-app:latest. The share/ kit
+# pulls that on each start, so other machines are always on the latest.
+name: image
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["share/**", "**.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: mosimaiain
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # ponytail: arm64 is emulated (slow, ~15–25 min); split onto ubuntu-24.04-arm runners if it gets annoying.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: mosimaiain/movie-app:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

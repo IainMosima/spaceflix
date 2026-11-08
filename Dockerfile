@@ -24,6 +24,7 @@ RUN npm run build && \
 
 # ─── Stage 3: minimal runtime image ──────────────────────────────────────────
 FROM node:22-bookworm-slim AS runner
+LABEL org.opencontainers.image.source=https://github.com/IainMosima/movie-app
 
 # ffmpeg (+ ffprobe) for transcoding; dumb-init as PID 1 for clean signal propagation
 RUN apt-get update && \

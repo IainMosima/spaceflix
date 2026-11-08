@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Download, HardDrive, Loader2, RefreshCw } from "lucide-react";
+import { Download, HardDrive, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useStorage } from "@/hooks/use-storage";
 import type { DownloadEntry } from "@/hooks/use-download-progress";
 import { DownloadsDialog } from "@/components/downloads-dialog";
@@ -107,31 +107,44 @@ export function StorageStrip() {
 
   return (
     <div className="rounded-xl bg-zinc-900/50 px-4 py-2">
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-x-1">
+        {/* No min-w-0: the link never shrinks below icon + free space, so the key
+            number can't be clipped; only the secondary "on disk" text truncates. */}
         <Link
           href="/settings#storage"
-          className={`flex flex-1 min-w-0 items-center gap-3 text-sm rounded-lg py-2 -ml-1 pl-1 hover:text-zinc-100 ${ring}`}
+          className={`flex flex-1 items-center gap-2 sm:gap-3 text-sm rounded-lg py-2 -ml-1 pl-1 hover:text-zinc-100 ${ring}`}
           aria-label={`Storage: ${formatBytes(disk.freeBytes)} free, downloads use ${report.cacheTotalFormatted}${
             active.length ? `, ${active.length} downloading at ${avgPct}%` : ""
           }. Open storage settings.`}
         >
-          <HardDrive className="h-4 w-4 text-zinc-500 shrink-0" aria-hidden />
-          <span className={`shrink-0 ${low ? "text-red-300" : tight ? "text-amber-300" : "text-zinc-200"}`}>
+          <HardDrive
+            className={`h-4 w-4 shrink-0 ${low ? "text-red-300" : tight ? "text-amber-300" : "text-zinc-500"}`}
+            aria-hidden
+          />
+          <span
+            className={`shrink-0 whitespace-nowrap tabular-nums ${low ? "text-red-300" : tight ? "text-amber-300" : "text-zinc-200"}`}
+          >
             {formatBytes(disk.freeBytes)} free
           </span>
-          <span className="text-zinc-600">·</span>
-          <span className="text-zinc-400 truncate">On disk {report.cacheTotalFormatted}</span>
+          <span className="hidden sm:inline text-zinc-600" aria-hidden>·</span>
+          <span className="hidden sm:inline min-w-0 truncate text-zinc-400">On disk {report.cacheTotalFormatted}</span>
         </Link>
-          <button
-            onClick={() => setShowDownloads(true)}
-            className={`${btn} flex items-center gap-1.5 ${active.length ? "text-purple-300" : ""}`}
-            aria-label={`Downloads${active.length ? `: ${active.length} downloading at ${avgPct}%` : ""}`}
-          >
-            <Download className="h-4 w-4" aria-hidden />
-            <span className="tabular-nums">
-              {active.length ? `${active.length} · ${avgPct}%` : "Downloads"}
+        <button
+          onClick={() => setShowDownloads(true)}
+          className={`${btn} min-w-10 px-2.5 sm:px-3 flex items-center justify-center gap-1.5 ${active.length ? "text-purple-300" : ""}`}
+          aria-label={`Downloads${active.length ? `: ${active.length} downloading at ${avgPct}%` : ""}`}
+          title="Downloads"
+        >
+          <Download className="h-4 w-4 shrink-0" aria-hidden />
+          {active.length ? (
+            <span className="whitespace-nowrap tabular-nums">
+              <span className="hidden sm:inline">{active.length} · </span>
+              {avgPct}%
             </span>
-          </button>
+          ) : (
+            <span className="hidden sm:inline">Downloads</span>
+          )}
+        </button>
         <button
           onClick={refreshAll}
           disabled={refreshing || cleaning}
@@ -147,11 +160,14 @@ export function StorageStrip() {
         <button
           onClick={() => setConfirming(true)}
           disabled={cleaning || confirming}
-          className={btn}
+          className={`${btn} min-w-10 px-0 sm:px-3 flex items-center justify-center gap-1.5`}
+          aria-label="Clean up"
+          title="Clean up"
         >
-          Clean up
+          <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="hidden sm:inline">Clean up</span>
         </button>
-        <Link href="/settings#storage" className={`${btn} hidden sm:flex items-center`}>
+        <Link href="/settings#storage" className={`${btn} hidden md:flex items-center`}>
           Manage
         </Link>
       </div>

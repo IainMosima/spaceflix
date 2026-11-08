@@ -17,6 +17,7 @@
 #   make stop       stop everything: the Mac app and the container
 #   make clear      delete everything downloaded (asks first; keeps library)
 #   make ip         the address to open on your phone or TV
+#   make share      dist/spaceflix.zip: the ready-to-run kit for another computer
 #
 # Works on macOS, Linux and Windows (Git Bash / WSL with make installed).
 
@@ -58,7 +59,7 @@ DATA_ABS := $(abspath $(DATA))
 # The container also gets your home folder, so Settings can switch folders.
 COMPOSE := HOST_LAN_IP=$(LAN_IP) MEDIA_ROOT=$(DATA_ABS) HOST_DATA_DIR=$(DATA_ABS) HOST_HOME=$(HOME) docker compose
 
-.PHONY: run run-go build stop clear ip guard docker-up c-run c-go c-restart c-logs c-build c-stop
+.PHONY: run run-go build stop clear ip share guard docker-up c-run c-go c-restart c-logs c-build c-stop
 
 # --- Mac -------------------------------------------------------------------
 
@@ -123,3 +124,9 @@ guard:
 	@if lsof -iTCP:8181 -sTCP:LISTEN >/dev/null 2>&1; then \
 		echo "Spaceflix is already running (port 8181). Use 'make stop' first."; exit 1; \
 	fi
+
+# The kit for another computer: unzip, double-click Start (needs Docker Desktop).
+share:
+	@mkdir -p dist && rm -f dist/spaceflix.zip
+	cd share && zip -qr ../dist/spaceflix.zip . -x '.*'
+	@echo "Made dist/spaceflix.zip"

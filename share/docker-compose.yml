@@ -1,0 +1,24 @@
+# Spaceflix, ready-made: no code, no build. The start scripts fill in the
+# folders and the network address, pull the latest image and start it.
+name: spaceflix
+services:
+  spaceflix:
+    image: mosimaiain/movie-app:latest
+    container_name: spaceflix
+    ports:
+      - "8181:8181" # the app
+      - "9191:9191" # video streams (VLC, players)
+      - "6881:6881/tcp" # torrent peers → faster downloads
+      - "6881:6881/udp"
+    # Turn off in the app = stays off; Restart in the app = comes back.
+    restart: on-failure
+    volumes:
+      # Movies, library and history live on this computer, never in the container.
+      - ${MEDIA_ROOT}:/app/data
+      # Home folder, so Settings can move movies elsewhere on this computer.
+      - ${HOST_HOME}:/host
+    environment:
+      - HOST_LAN_IP=${HOST_LAN_IP:-}
+      - HOST_DATA_DIR=${HOST_DATA_DIR:-}
+      - HOST_HOME=${HOST_HOME:-}
+      - TORRENT_PORT=6881

@@ -2,8 +2,7 @@
 .gitignore
 node_modules
 .next
-data/cache
-data/*.json
+data
 .active-data-dir
 .env*
 *.tsbuildinfo
@@ -13,3 +12,6 @@ Dockerfile
 .dockerignore
 compose.yaml
 tools
+share
+dist
+.github

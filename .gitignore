@@ -56,3 +56,4 @@ next-env.d.ts
 /data/server.log
 /data/tv-check.log
 /data/library.backup-*.json
+dist/
