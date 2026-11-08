@@ -57,3 +57,6 @@ next-env.d.ts
 /data/tv-check.log
 /data/library.backup-*.json
 dist/
+
+# live channel links + their headers/tokens (user-specific)
+/data/channels.json

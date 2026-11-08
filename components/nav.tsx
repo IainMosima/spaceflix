@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Settings } from "lucide-react";
+import { Home, Radio, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UfoLogo } from "@/components/ufo-logo";
 import { PowerMenu } from "@/components/power-menu";
@@ -11,6 +11,7 @@ import { RuntimeBadge } from "@/components/runtime-badge";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home },
+  { href: "/live", label: "Live", icon: Radio },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -18,7 +19,7 @@ export function Nav() {
   const pathname = usePathname();
 
   // Don't show nav on watch page
-  if (pathname.startsWith("/watch")) {
+  if (pathname.startsWith("/watch") || pathname.startsWith("/live/")) {
     return null;
   }
 

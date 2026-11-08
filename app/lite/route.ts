@@ -20,6 +20,7 @@ import { VIDEO_EXT } from "@/lib/watch-url";
 import { resolveItemCategory } from "@/lib/category";
 import { lgCompat, LG_TIP } from "@/lib/tv-compat";
 import { lanHost } from "@/lib/lan-host";
+import { getChannelById, getChannels } from "@/lib/channels-store";
 import type { LibraryItem, TorrentFileInfo, TorrentInfo, WatchRecord } from "@/types";
 
 /**
@@ -214,12 +215,16 @@ async function homePage() {
     })
     .join("");
 
+  const liveRows = getChannels()
+    .map((c) => row(lite({ live: c.id }), c.name, '<span class="bad">LIVE</span>'))
+    .join("");
+
   const section = (h: string, rows: string) => (rows ? `<h2>${h}</h2>${rows}` : "");
   return html(
     "Spaceflix",
     `<div class="wrap"><div class="top"><h1>Spaceflix</h1><a class="full" href="/?full=1">Full app</a></div>
-${section("Continue", contRows)}${section("Folders", folderRows)}${section("Library", itemRows)}
-${contRows || folderRows || itemRows ? "" : '<p class="muted">The library is empty. Add something from the full app.</p>'}</div>`
+${section("Continue", contRows)}${section("Live", liveRows)}${section("Folders", folderRows)}${section("Library", itemRows)}
+${contRows || liveRows || folderRows || itemRows ? "" : '<p class="muted">The library is empty. Add something from the full app.</p>'}</div>`
   );
 }
 
@@ -387,7 +392,43 @@ ${warn}<video id="v" controls autoplay preload="auto" src="${esc(src)}">${track}
   );
 }
 
-// GET /lite[?folder=|?item=|?play=item:<id>|?play=<hash>&file=N&title=T]
+/** Live HLS channel: native HLS if the TV has it (webOS usually does), else hls.js (ES5 build). */
+function livePage(id: string) {
+  const channel = getChannelById(id);
+  if (!channel) return notFound("Channel");
+  const src = JSON.stringify(`/api/live/${encodeURIComponent(id)}`);
+
+  // ES5 only (Chromium 38).
+  const script = `(function(){
+var v=document.getElementById("v"),src=${src},m=document.getElementById("m");
+function fail(t){m.style.display="block";m.innerHTML=t;}
+function go(){try{v.play();}catch(e){}try{v.focus();}catch(e){}}
+v.addEventListener("error",function(){if(v.getAttribute("src"))fail("This live stream is unavailable. Check its link and headers in the full app.");},false);
+if(v.canPlayType("application/vnd.apple.mpegurl")){v.src=src;go();return;}
+var s=document.createElement("script");s.src="/api/live/hls.js";
+s.onload=function(){
+if(!window.Hls||!Hls.isSupported()){fail("This TV can't play live streams.");return;}
+var h=new Hls(),tries=0;
+h.on(Hls.Events.FRAG_LOADED,function(){tries=0;});
+h.on(Hls.Events.MANIFEST_PARSED,go);
+h.on(Hls.Events.ERROR,function(e,d){if(!d.fatal)return;
+if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&tries++<3){h.startLoad();return;}
+if(d.type===Hls.ErrorTypes.MEDIA_ERROR){h.recoverMediaError();return;}
+h.destroy();fail("This live stream is unavailable"+(d.response&&d.response.code?" (HTTP "+d.response.code+")":"")+". Check its link and headers in the full app.");});
+h.loadSource(src);h.attachMedia(v);};
+s.onerror=function(){fail("Couldn't load the live player.");};
+document.body.appendChild(s);
+})();`;
+
+  return html(
+    channel.name,
+    `<div class="bar"><a href="/lite">Back</a><span class="t">${esc(channel.name)}</span><span class="bad">LIVE</span></div>
+<div class="warn" id="m" style="display:none"></div><video id="v" controls autoplay></video>
+<script>${script}</script>`
+  );
+}
+
+// GET /lite[?live=<channel id>|?folder=|?item=|?play=item:<id>|?play=<hash>&file=N&title=T]
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   try {
@@ -398,6 +439,8 @@ export async function GET(req: NextRequest) {
       if (!/^[a-z0-9]{32,40}$/i.test(play)) return notFound("Video");
       return await playPage(req, play.toLowerCase(), sp.get("file"), sp.get("title"));
     }
+    const live = sp.get("live");
+    if (live) return livePage(live);
     const folder = sp.get("folder");
     if (folder) return folderPage(folder);
     const item = sp.get("item");

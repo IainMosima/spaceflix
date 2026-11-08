@@ -243,3 +243,16 @@ export interface BrowseResponse {
   entries: BrowseEntry[];
   error?: string;
 }
+
+// Live HLS channel. Headers are sent upstream by the /api/live proxy, since a
+// browser can't set Referer / Origin / User-Agent itself.
+export interface Channel {
+  id: string;
+  name: string;
+  url: string;
+  headers: Record<string, string>;
+}
+
+export interface ChannelsData {
+  channels: Channel[];
+}

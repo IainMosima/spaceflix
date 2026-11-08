@@ -55,6 +55,8 @@ interface VideoPlayerProps {
    * same throttle as onProgress. Drives the decision to prefetch what's next.
    */
   onBufferHealth?: (secondsAhead: number) => void;
+  /** Live HLS (.m3u8): hls.js / native HLS, no seek bar, no torrent recovery. */
+  live?: boolean;
 }
 
 const PROGRESS_REPORT_INTERVAL_MS = 10_000;
@@ -81,6 +83,7 @@ export function VideoPlayer({
   prevLabel,
   onPrev,
   onBufferHealth,
+  live = false,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -169,7 +172,7 @@ export function VideoPlayer({
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || live) return;
     video.load();
     setStreamError(null);
     setIsBuffering(true);
@@ -187,7 +190,77 @@ export function VideoPlayer({
         });
       }
     }
-  }, [playbackSrc, autoPlay]);
+  }, [playbackSrc, autoPlay, live]);
+
+  // Live: hls.js when the browser has MSE, else native HLS (Safari / iOS / some TVs).
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!live || !video) return;
+    let hls: import("hls.js").default | null = null;
+    let cancelled = false;
+    setStreamError(null);
+    setIsBuffering(true);
+
+    const start = () => {
+      if (!autoPlay) return;
+      video.play().catch(() => {
+        video.muted = true;
+        setIsMuted(true);
+        setMutedByAutoplay(true);
+        video.play().catch(() => {});
+      });
+    };
+    const fail = (message: string) => {
+      setStreamError(message);
+      setIsBuffering(false);
+    };
+
+    import("hls.js").then(({ default: Hls }) => {
+      if (cancelled) return;
+      if (!Hls.isSupported()) {
+        if (!video.canPlayType("application/vnd.apple.mpegurl")) {
+          fail("This browser can't play live streams.");
+          return;
+        }
+        video.src = src;
+        start();
+        return;
+      }
+      const h = new Hls();
+      hls = h;
+      let networkRetries = 0;
+      h.on(Hls.Events.FRAG_LOADED, () => {
+        networkRetries = 0;
+      });
+      h.on(Hls.Events.MANIFEST_PARSED, start);
+      h.on(Hls.Events.ERROR, (_, data) => {
+        if (!data.fatal) return;
+        const code = data.response?.code;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && networkRetries++ < 3 && code !== 403 && code !== 404) {
+          h.startLoad();
+        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          h.recoverMediaError();
+        } else {
+          h.destroy();
+          fail(
+            code
+              ? `Live stream unavailable (HTTP ${code}). Check the link and its headers.`
+              : "Live stream unavailable. Check the link and its headers."
+          );
+        }
+      });
+      h.loadSource(src);
+      h.attachMedia(video);
+    });
+
+    return () => {
+      cancelled = true;
+      hls?.destroy();
+      video.removeAttribute("src");
+      video.load();
+    };
+    // srcRevision: the error overlay's Retry bumps it to rebuild the HLS session.
+  }, [live, src, autoPlay, srcRevision]);
 
   useEffect(() => {
     if (!fallbackNotice) return;
@@ -380,6 +453,14 @@ export function VideoPlayer({
     };
     const handleError = () => {
       if (!video.error) return;
+      if (live) {
+        // hls.js reports through its own ERROR event; this is native HLS.
+        if (video.src) {
+          setStreamError("Live stream unavailable. Check the link and its headers.");
+          setIsBuffering(false);
+        }
+        return;
+      }
       if (recoveryAttemptsRef.current < 3) {
         recoverStream("Connection lost. Retrying stream...");
         return;
@@ -393,6 +474,7 @@ export function VideoPlayer({
     };
     const handleStalled = () => {
       setIsBuffering(true);
+      if (live) return;
 
       if (isTvPlaybackRef.current) {
         setFallbackNotice("Buffering — waiting for more torrent pieces...");
@@ -420,6 +502,7 @@ export function VideoPlayer({
       }
     };
     const handleUnexpectedEnd = () => {
+      if (live) return;
       const total = effectiveDuration();
       const now = Number.isFinite(video.currentTime) ? video.currentTime : 0;
       // Within 2s of real end — let it finish naturally, and bank the position
@@ -464,7 +547,7 @@ export function VideoPlayer({
       video.removeEventListener("ended", handleUnexpectedEnd);
       if (stalledTimeoutRef.current) clearTimeout(stalledTimeoutRef.current);
     };
-  }, [recoverStream, streamError, isInitialStrictBuffering, fallbackDuration]);
+  }, [recoverStream, streamError, isInitialStrictBuffering, fallbackDuration, live]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1154,7 +1237,7 @@ export function VideoPlayer({
       {/* Video */}
       <video
         ref={videoRef}
-        src={resolvedSrc}
+        src={live ? undefined : resolvedSrc}
         className="w-full h-full"
         autoPlay={autoPlay}
         playsInline
@@ -1216,7 +1299,9 @@ export function VideoPlayer({
             <AlertCircle className="h-12 w-12 text-red-500" />
             <p className="text-lg text-white font-medium">{streamError}</p>
             <p className="text-sm text-zinc-400">
-              The torrent may have no active peers. Try again later or choose a different source.
+              {live
+                ? "The channel may be offline, or it needs a Referer / User-Agent / token header. Edit the channel to add one."
+                : "The torrent may have no active peers. Try again later or choose a different source."}
             </p>
             <div className="flex gap-3">
               <Button
@@ -1248,7 +1333,7 @@ export function VideoPlayer({
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="h-12 w-12 text-white animate-spin" />
             <p className="text-sm text-zinc-400">
-              Buffering... {Math.round((buffered / duration) * 100) || 0}%
+              {live ? "Buffering..." : `Buffering... ${Math.round((buffered / duration) * 100) || 0}%`}
             </p>
           </div>
         </div>
@@ -1360,6 +1445,7 @@ export function VideoPlayer({
       >
         <div className="px-6">
           {/* Progress bar - clickable area for TV */}
+          {!live && (
           <div
             className={cn(
               "relative group/progress mb-4 cursor-pointer",
@@ -1409,6 +1495,7 @@ export function VideoPlayer({
               prefersAlwaysOnControls ? "h-8" : "h-4"
             )} />
           </div>
+          )}
 
           {/* Controls row - simplified on TV */}
           <div className={cn("flex items-center gap-4", prefersAlwaysOnControls && "justify-center gap-6")}>
@@ -1453,13 +1540,20 @@ export function VideoPlayer({
               </div>
             )}
 
-            {/* Time - always show */}
+            {/* Time - always show (LIVE pill instead for live streams) */}
+            {live ? (
+              <span className="flex items-center gap-1.5 rounded bg-red-600 px-2 py-0.5 text-xs font-bold tracking-wider text-white">
+                <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                LIVE
+              </span>
+            ) : (
             <span className={cn(
               "text-white/90 tabular-nums",
               prefersAlwaysOnControls ? "text-xl" : "text-sm"
             )}>
               {formatDuration(currentTime)} / {formatDuration(duration)}
             </span>
+            )}
 
             {/* Subtitle picker - show when subtitles available */}
             {subtitles.length > 0 && prefersAlwaysOnControls && (
