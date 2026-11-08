@@ -14,6 +14,7 @@ const DEFAULT_SETTINGS: EngineSettings = {
   // chokes on it), 10 connections per torrent.
   uploadLimit: 0,
   maxConnections: 10,
+  parallelDownloads: 3,
   cleanupDelaySeconds: 30,
   prebufferSeconds: 90, // wait up to 90s for the initial safety buffer
   bufferSizeMB: 200, // cache ~200MB so TVs can coast through peer stalls

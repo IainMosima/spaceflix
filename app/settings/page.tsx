@@ -17,6 +17,7 @@ export default function SettingsPage() {
   const [maxConnections, setMaxConnections] = useState(10);
   const [downloadLimit, setDownloadLimit] = useState(-1);
   const [uploadLimit, setUploadLimit] = useState(0);
+  const [parallelDownloads, setParallelDownloads] = useState(3);
   const [cleanupDelay, setCleanupDelay] = useState(30);
   const [prebufferSeconds, setPrebufferSeconds] = useState(90);
   const [bufferSizeMB, setBufferSizeMB] = useState(200);
@@ -30,6 +31,7 @@ export default function SettingsPage() {
       setMaxConnections(settings.maxConnections);
       setDownloadLimit(settings.downloadLimit);
       setUploadLimit(settings.uploadLimit);
+      setParallelDownloads(settings.parallelDownloads ?? 3);
       setCleanupDelay(settings.cleanupDelaySeconds);
       setPrebufferSeconds(settings.prebufferSeconds);
       setBufferSizeMB(settings.bufferSizeMB || 300);
@@ -44,6 +46,7 @@ export default function SettingsPage() {
         maxConnections,
         downloadLimit,
         uploadLimit,
+        parallelDownloads,
         cleanupDelaySeconds: cleanupDelay,
         prebufferSeconds,
         bufferSizeMB,
@@ -116,6 +119,23 @@ export default function SettingsPage() {
                 />
                 <p className="text-xs text-zinc-600 mt-1">
                   Per torrent. Fewer is gentler on your router; 10 is plenty.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-sm text-zinc-400 mb-2 block">
+                  Downloads at the same time
+                </label>
+                <Input
+                  type="number"
+                  value={parallelDownloads}
+                  onChange={(e) => setParallelDownloads(Number(e.target.value))}
+                  min={1}
+                  max={10}
+                  className="bg-zinc-800 border-zinc-700 w-32"
+                />
+                <p className="text-xs text-zinc-600 mt-1">
+                  The rest wait their turn. All pause while you watch, so playback stays smooth.
                 </p>
               </div>
 

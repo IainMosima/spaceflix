@@ -24,6 +24,8 @@ export interface EngineSettings {
   autoPurgePrevious?: boolean;
   /** Pull the next episode ahead while the current one plays. */
   prefetchNextEpisode?: boolean;
+  /** Background downloads running at once (others wait their turn). */
+  parallelDownloads?: number;
   /** Seconds of buffer the current episode needs before a prefetch starts. */
   prefetchMinBufferSeconds?: number;
   /** After Next, delete the previous episode once the next is watched N min or P% downloaded. */

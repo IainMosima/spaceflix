@@ -2,6 +2,10 @@
 # or  powershell -ExecutionPolicy Bypass -File spaceflix.ps1 [start|stop|logs]
 param([string]$Action = "start")
 Set-Location $PSScriptRoot
+# Windows PowerShell 5.1: GitHub needs TLS 1.2, and the progress bar makes
+# downloads crawl.
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+$ProgressPreference = 'SilentlyContinue'
 
 # Keep the kit itself current: fetch the latest from GitHub, replace what
 # changed, and start again with the new scripts. Offline? Carry on as is.
@@ -36,12 +40,21 @@ if ($Action -eq 'start' -and -not $env:SPACEFLIX_UPDATED) {
 
 # Docker wants forward slashes; the app compares paths that way too.
 $homeDir = $HOME -replace '\\', '/'
+# Local disks and USB sticks that are plugged in (no CD/DVD, no network drives:
+# Docker can't mount those, and one bad mount stops the whole app).
+$drives = [IO.DriveInfo]::GetDrives() |
+  Where-Object { $_.IsReady -and ($_.DriveType -eq 'Fixed' -or $_.DriveType -eq 'Removable') } |
+  ForEach-Object { $_.Name.Substring(0, 1).ToUpper() }
 # D: drive if there is one, else Videos on C:, else Downloads.
-$default = if (Test-Path 'D:\') { 'D:/Movies/Spaceflix' }
+$default = if ($drives -contains 'D') { 'D:/Movies/Spaceflix' }
   elseif (Test-Path "$HOME\Videos") { "$homeDir/Videos/Spaceflix" }
   else { "$homeDir/Downloads/Spaceflix" }
 $pointer = Join-Path $HOME '.spaceflix\data-dir'
-$data = if ($env:DATA) { $env:DATA } elseif (Test-Path $pointer) { (Get-Content $pointer -Raw).Trim() } else { $default }
+$saved = if (Test-Path $pointer) { ([string](Get-Content $pointer -Raw -Encoding UTF8)).Trim() -replace '\\', '/' }
+# Only a folder on a drive that's here now (not "This PC", a network share or
+# an unplugged USB stick).
+if (-not ($saved -match '^([A-Za-z]):/' -and $drives -contains $Matches[1].ToUpper())) { $saved = $null }
+$data = if ($env:DATA) { $env:DATA } elseif ($saved) { $saved } else { $default }
 $data = $data -replace '\\', '/'
 $ip = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
   Where-Object { $_.PrefixOrigin -eq 'Dhcp' } | Select-Object -First 1).IPAddress
@@ -53,14 +66,13 @@ $env:HOST_HOME = $homeDir
 
 # Every drive (C:, D:, USB...) inside the container at /drives/<letter>, so the
 # app's Settings can switch to any folder on any drive while it runs.
-$drives = Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue |
-  Where-Object { $_.Root -match '^[A-Za-z]:\\$' -and $null -ne $_.Free }
 $lines = @('services:', '  spaceflix:', '    volumes:')
 foreach ($d in $drives) {
   $lines += '      - type: bind'
-  $lines += "        source: $($d.Name):/"
-  $lines += "        target: /drives/$($d.Name.ToLower())"
+  $lines += "        source: ${d}:/"
+  $lines += "        target: /drives/$($d.ToLower())"
 }
+if (-not $drives) { $lines = @('services: {}') }
 Set-Content -Path 'docker-compose.drives.yml' -Value $lines -Encoding ascii
 $compose = @('compose', '-f', 'docker-compose.yml', '-f', 'docker-compose.drives.yml')
 
@@ -90,7 +102,12 @@ switch ($Action) {
     docker @compose pull
     if ($LASTEXITCODE -ne 0) { Write-Host "Couldn't check for updates (offline?). Using the version you have." }
     docker @compose up -d
-    if ($LASTEXITCODE -ne 0) { exit 1 }
+    if ($LASTEXITCODE -ne 0) {
+      # A drive Docker Desktop isn't allowed to share? Start without the extras.
+      Write-Host "Trying again without the other drives..."
+      docker compose up -d
+      if ($LASTEXITCODE -ne 0) { exit 1 }
+    }
     docker image prune -f *> $null
     Write-Host ""
     Write-Host "Spaceflix is running:  http://localhost:8181"
