@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { VlcIcon } from "@/components/vlc-icon";
 import { Button } from "@/components/ui/button";
 import { ChannelDialog } from "@/components/channel-dialog";
@@ -40,26 +40,6 @@ export default function LivePage() {
     else await send("/api/channels", "POST", data);
     toast.success(editing ? "Channel saved" : "Channel added");
     load();
-  };
-
-  const add = async (data: Omit<Channel, "id">) => {
-    await send("/api/channels", "POST", data);
-    toast.success(`Added ${data.name}`);
-    load();
-  };
-
-  const [refreshing, setRefreshing] = useState<string | null>(null);
-  const refresh = async (ch: Channel) => {
-    setRefreshing(ch.id);
-    try {
-      await send(`/api/channels/${ch.id}`, "POST");
-      toast.success(`${ch.name}: fresh link saved`);
-      load();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setRefreshing(null);
-    }
   };
 
   const remove = async (ch: Channel) => {
@@ -99,7 +79,7 @@ export default function LivePage() {
             <Plus className="h-12 w-12 text-zinc-700 mx-auto mb-4" />
             <h3 className="font-medium text-zinc-400 mb-2">No channels yet</h3>
             <p className="text-sm text-zinc-600">
-              Paste a page or playlist link and the app finds the stream, or add a .m3u8 by hand.
+              Add a .m3u8 link, plus any headers it needs (Referer, User-Agent, token).
             </p>
           </div>
         )}
@@ -137,18 +117,6 @@ export default function LivePage() {
               >
                 <VlcIcon className="h-4 w-4" />
               </Button>
-              {ch.sourceUrl && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Get a fresh link for ${ch.name}`}
-                  title="Get a fresh link from its source"
-                  disabled={refreshing === ch.id}
-                  onClick={() => refresh(ch)}
-                >
-                  <RefreshCw className={`h-4 w-4 ${refreshing === ch.id ? "animate-spin" : ""}`} />
-                </Button>
-              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -177,7 +145,6 @@ export default function LivePage() {
           onOpenChange={(o) => !o && setEditing(undefined)}
           channel={editing ?? undefined}
           onSave={save}
-          onAdd={add}
           templates={channels ?? []}
         />
       )}

@@ -251,8 +251,6 @@ export interface Channel {
   name: string;
   url: string;
   headers: Record<string, string>;
-  /** Page or playlist the stream was found on; re-scanned when the link expires. */
-  sourceUrl?: string;
 }
 
 export interface ChannelsData {
