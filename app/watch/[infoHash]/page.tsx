@@ -468,6 +468,36 @@ function WatchPlayer({ params }: WatchPageProps) {
       .catch(() => {});
   }, [streamUrl, peersReady, infoHash]);
 
+  // Watching = downloading: the file keeps filling in the background and shows
+  // in Downloads with its real progress, same as tapping ↓ Download. Once per
+  // episode; a failure (e.g. low disk) never touches playback.
+  const downloadQueuedRef = useRef(false);
+  useEffect(() => {
+    if (!peersReady || downloadQueuedRef.current) return;
+    downloadQueuedRef.current = true;
+    const h = infoHash.toLowerCase();
+    fetch("/api/library")
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((lib: { items?: { infoHash?: string; magnet: string }[] } | null) => {
+        const item = lib?.items?.find(
+          (i) => i.infoHash?.toLowerCase() === h || i.magnet.toLowerCase().includes(h)
+        );
+        return fetch("/api/downloads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            magnet: item?.magnet ?? `magnet:?xt=urn:btih:${infoHash}`,
+            infoHash: h,
+            // No ?file= means a single movie: let the server pick its video file.
+            ...(fileIndex ? { fileIndex: fileIndexNum } : {}),
+            title,
+          }),
+        });
+      })
+      .catch(() => {});
+  }, [peersReady, infoHash, fileIndex, fileIndexNum, title]);
+
   // Auto-dismiss the "reclaimed X" note so it doesn't sit over the film.
   useEffect(() => {
     if (!reclaimedNotice) return;

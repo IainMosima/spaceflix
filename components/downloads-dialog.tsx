@@ -81,6 +81,10 @@ function PlayRing({
   );
 }
 
+/** How much of an on-disk file is really there: the engine's count when it has one. */
+const diskProgress = (f: { progress?: number; sizeBytes: number; length?: number }) =>
+  f.progress ?? (f.length ? Math.min(1, f.sizeBytes / f.length) : 1);
+
 const STATE_TEXT: Record<DownloadEntry["state"], string> = {
   queued: "Queued",
   downloading: "Downloading",
@@ -469,8 +473,8 @@ export function DownloadsDialog({
                                   <PlayRing
                                     d={{
                                       title: label,
-                                      progress: f.length ? f.sizeBytes / f.length : 1,
-                                      state: !f.length || f.sizeBytes >= f.length ? "ready" : "paused",
+                                      progress: diskProgress(f),
+                                      state: diskProgress(f) >= 1 ? "ready" : "paused",
                                     }}
                                     disabled={busy !== null}
                                     onClick={() =>

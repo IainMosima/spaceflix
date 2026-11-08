@@ -170,6 +170,7 @@ export interface StorageFile {
   watched?: boolean;
   magnet?: string; // the library item's, to play it
   length?: number; // full episode size, from the pack's file list
+  progress?: number; // 0..1 from the torrent engine when it's loaded (truer than size on disk)
 }
 
 export interface DiskSpace {

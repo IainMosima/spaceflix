@@ -9,6 +9,9 @@ import {
   allocatedSize,
 } from "@/lib/storage-store";
 import { loadMeta } from "@/lib/torrent-meta";
+import { getTorrentEngine } from "@/lib/torrent-engine";
+import { withTimeout } from "@/lib/downloads-store";
+import type { TorrentInfo } from "@/types";
 import { readdirSync, statSync } from "fs";
 import { join, relative, basename } from "path";
 import type { StorageFile } from "@/types";
@@ -44,6 +47,11 @@ import { extractInfoHashFromMagnet } from "@/lib/torrent-cache-actions";
 export async function GET() {
   try {
     const report = getStorageReport();
+    // Real per-file progress for loaded torrents. Size on disk can't tell: on
+    // Windows/NTFS a half-downloaded file already takes its full size.
+    const torrents: TorrentInfo[] = await withTimeout(getTorrentEngine().getActiveTorrents(), 2000, "Worker")
+      .then((d) => d.torrents ?? [])
+      .catch(() => []);
     // Mark what's been watched, so the Downloads window can offer it for deletion first.
     const records = getWatchProgress().records;
     const items = getAllItems();
@@ -71,6 +79,7 @@ export async function GET() {
                 fileIndex: idx,
                 watched: mine.some((r) => r.fileIndex === idx && r.finished),
                 length: metaFile?.length,
+                progress: torrents.find((t) => t.infoHash?.toLowerCase() === hash)?.files[idx]?.progress,
                 ...(item ? { magnet: item.magnet } : {}),
               }
             : {}),
