@@ -1,6 +1,7 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+// Plain JS (not .ts) so `next start` doesn't need TypeScript, which the
+// Docker image leaves out.
+/** @type {import("next").NextConfig} */
+const nextConfig = {
   // WebTorrent uses native modules that aren't compatible with Turbopack
   serverExternalPackages: [
     "webtorrent",
