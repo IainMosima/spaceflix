@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useConfirmTap } from "@/hooks/use-confirm-tap";
 import { toast } from "sonner";
 import {
   Play,
@@ -240,21 +241,16 @@ export function FolderDialog({
       }
     });
 
+  const confirmFolderClear = useConfirmTap();
   const handleClearFolder = () =>
-    run("__folder__", async () => {
-      if (
-        !window.confirm(
-          `Clear cached bytes for all ${cachedCount} cached item(s) in "${folder.name}"? They stay in the library and re-download when played.`
-        )
-      )
-        return;
+    confirmFolderClear.tap(() => run("__folder__", async () => {
       try {
         const res = await onClearFolderCache();
         toast.success(`Reclaimed ${res.reclaimedFormatted ?? folder.cachedFormatted}`);
       } catch {
         toast.error("Failed to clear folder cache");
       }
-    });
+    }));
 
   const handleDeleteFolder = () =>
     run("__deleteFolder__", async () => {
@@ -373,7 +369,11 @@ export function FolderDialog({
               variant="outline"
               onClick={handleClearFolder}
               disabled={busy !== null}
-              className="w-full mt-3 h-11 border-amber-900/60 text-amber-300 hover:bg-amber-950/40 hover:text-amber-200"
+              className={
+                confirmFolderClear.armed
+                  ? "w-full mt-3 h-11 border-amber-500 bg-amber-500/15 text-amber-200 hover:bg-amber-500/25"
+                  : "w-full mt-3 h-11 border-amber-900/60 text-amber-300 hover:bg-amber-950/40 hover:text-amber-200"
+              }
             >
               {busy === "__folder__" ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -381,7 +381,9 @@ export function FolderDialog({
                 <Eraser className="h-4 w-4 mr-2" />
               )}
               <span className="truncate">
-                Clear all cached in this folder ({folder.cachedFormatted})
+                {confirmFolderClear.armed
+                  ? `Clear ${folder.cachedFormatted} from ${cachedCount} item(s)? Tap again`
+                  : `Clear all cached in this folder (${folder.cachedFormatted})`}
               </span>
             </Button>
           )}

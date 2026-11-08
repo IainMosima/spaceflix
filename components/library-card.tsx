@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useConfirmTap } from "@/hooks/use-confirm-tap";
 import {
   Play,
   Trash2,
@@ -62,14 +63,21 @@ export function LibraryCard({
 }) {
   const [isClearing, setIsClearing] = useState(false);
 
-  const handleClearCache = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const isSeries = item.category === "series";
+  // A whole series is many episodes: warn first. A single movie clears at once.
+  const confirm = useConfirmTap();
+
+  const clearNow = async () => {
     setIsClearing(true);
     await onClearCache();
     setIsClearing(false);
   };
 
-  const isSeries = item.category === "series";
+  const handleClearCache = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSeries) confirm.tap(clearNow);
+    else clearNow();
+  };
 
   return (
     <Card
@@ -129,12 +137,25 @@ export function LibraryCard({
             variant="ghost"
             onClick={handleClearCache}
             disabled={isClearing}
-            className="h-10 w-10 text-zinc-500 hover:text-amber-400 shrink-0"
-            aria-label="Clear cached bytes"
+            className={
+              confirm.armed
+                ? "h-8 w-auto px-2.5 shrink-0 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/50 hover:bg-amber-500/25 hover:text-amber-200 text-xs font-medium"
+                : "h-10 w-10 text-zinc-500 hover:text-amber-400 shrink-0"
+            }
+            aria-label={
+              confirm.armed
+                ? `Tap again to clear ${item.cachedFormatted} for the whole series`
+                : "Clear cached bytes"
+            }
             title={`Clear ${item.cachedFormatted} of cached bytes`}
           >
             {isClearing ? (
               <Loader2 className="h-4 w-4 animate-spin" />
+            ) : confirm.armed ? (
+              <>
+                <Eraser className="h-3.5 w-3.5" />
+                Clear {item.cachedFormatted}? Tap again
+              </>
             ) : (
               <Eraser className="h-4 w-4" />
             )}
@@ -232,7 +253,7 @@ export function LibraryCard({
 
             <DropdownMenuSeparator className="bg-zinc-800" />
             {item.cachedBytes > 0 && (
-              <DropdownMenuItem onSelect={() => onClearCache()}>
+              <DropdownMenuItem onSelect={() => (isSeries ? confirm.arm() : clearNow())}>
                 <Eraser className="h-4 w-4" />
                 Clear cache ({item.cachedFormatted})
               </DropdownMenuItem>

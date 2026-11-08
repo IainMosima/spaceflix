@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useConfirmTap } from "@/hooks/use-confirm-tap";
 import {
   Film,
   FileText,
@@ -233,16 +234,12 @@ export function FilePicker({
     }
   };
 
-  const handleClearAll = async () => {
+  const confirmClearAll = useConfirmTap();
+  const handleClearAll = () => confirmClearAll.tap(clearAll);
+  const clearAll = async () => {
     if (!infoHash) return;
     const cached = files.filter((f) => f.cachedBytes > 0);
     if (cached.length === 0) return;
-    if (
-      !window.confirm(
-        `Clear ${cachedTotal.formatted} of cached bytes for "${torrentName}"? It re-downloads on next play.`
-      )
-    )
-      return;
 
     setIsClearingAll(true);
     try {
@@ -422,14 +419,18 @@ export function FilePicker({
                     variant="outline"
                     onClick={handleClearAll}
                     disabled={isClearingAll || clearingIndex !== null}
-                    className="shrink-0 h-7 border-amber-900/60 text-amber-300 hover:bg-amber-950/40 hover:text-amber-200"
+                    className={
+                      confirmClearAll.armed
+                        ? "shrink-0 h-7 border-amber-500 bg-amber-500/15 text-amber-200 hover:bg-amber-500/25"
+                        : "shrink-0 h-7 border-amber-900/60 text-amber-300 hover:bg-amber-950/40 hover:text-amber-200"
+                    }
                   >
                     {isClearingAll ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
                     ) : (
                       <Eraser className="h-3.5 w-3.5 mr-1.5" />
                     )}
-                    Clear all
+                    {confirmClearAll.armed ? `Clear ${cachedTotal.formatted}? Tap again` : "Clear all"}
                   </Button>
                 )}
               </div>
