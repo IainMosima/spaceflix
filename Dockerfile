@@ -47,7 +47,10 @@ COPY --from=builder --chown=app:app /app/next.config.mjs ./
 COPY --from=builder --chown=app:app /app/lib            ./lib
 
 # Pre-create /app/data so the non-root user owns it before the volume mounts
-RUN mkdir -p /app/data && chown -R app:app /app/data
+# Writable by any user too: the share kit runs the container as the computer's
+# own user (Linux) or root (Windows/Mac), so movies on the host belong to them.
+RUN mkdir -p /app/data /app/.next/cache && chown -R app:app /app/data /app/.next && \
+    chmod -R a+rwX /app/data /app/.next
 
 USER app
 
