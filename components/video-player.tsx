@@ -1453,7 +1453,7 @@ export function VideoPlayer({
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6">
+        <div className="px-3 sm:px-6">
           {/* Progress bar - clickable area for TV */}
           {!live && (
           <div
@@ -1508,7 +1508,13 @@ export function VideoPlayer({
           )}
 
           {/* Controls row - simplified on TV */}
-          <div className={cn("flex items-center gap-4", prefersAlwaysOnControls && "justify-center gap-6")}>
+          {/* Phones: time gets its own line and spacing tightens, so every button fits on screen. */}
+          <div
+            className={cn(
+              "flex flex-wrap sm:flex-nowrap items-center gap-x-1 gap-y-1 sm:gap-4",
+              prefersAlwaysOnControls && "flex-nowrap justify-center gap-6"
+            )}
+          >
             {/* Play/Pause - only show on desktop */}
             {!prefersAlwaysOnControls && (
               <button
@@ -1559,7 +1565,7 @@ export function VideoPlayer({
             ) : (
             <span className={cn(
               "text-white/90 tabular-nums",
-              prefersAlwaysOnControls ? "text-xl" : "text-sm"
+              prefersAlwaysOnControls ? "text-xl" : "text-sm basis-full order-first pl-1 sm:basis-auto sm:order-none sm:pl-0"
             )}>
               {formatDuration(currentTime)} / {formatDuration(duration)}
             </span>
@@ -1723,7 +1729,7 @@ export function VideoPlayer({
                   <Button
                     variant="ghost"
                     className={cn(
-                      "text-white hover:bg-white/10 text-sm h-10 px-3 rounded-full",
+                      "hidden sm:inline-flex text-white hover:bg-white/10 text-sm h-10 px-3 rounded-full",
                       "focus:bg-white/20 focus:ring-2 focus:ring-white focus:outline-none"
                     )}
                   >
@@ -1767,7 +1773,8 @@ export function VideoPlayer({
                 type="button"
                 {...handleTVClick(togglePiP)}
                 className={cn(
-                  "flex items-center justify-center text-white rounded-full cursor-pointer h-10 w-10",
+                  // Phones: hidden (iPhone's own fullscreen player has PiP)
+                  "hidden sm:flex items-center justify-center text-white rounded-full cursor-pointer h-10 w-10",
                   "hover:bg-white/10 active:bg-white/30",
                   "focus:bg-white/20 focus:ring-2 focus:ring-white focus:outline-none",
                   isPiP && "bg-white/20"
