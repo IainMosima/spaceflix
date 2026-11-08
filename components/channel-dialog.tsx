@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -162,7 +162,12 @@ export function ChannelDialog({
     setRows((r) => r.map((row, j) => (j === i ? { ...row, ...patch } : row)));
   const addRow = (key = "") => setRows((r) => [...r, { key, value: "" }]);
 
-  const save = async () => {
+  const findRef = useRef<HTMLInputElement>(null);
+  const [addedCount, setAddedCount] = useState(0);
+  const canSave = !!name.trim() && !!url.trim() && !saving;
+
+  // next = add mode's "Add & next": keep the dialog open, keep the headers, clear the rest.
+  const save = async (next = false) => {
     setSaving(true);
     setError(null);
     try {
@@ -171,7 +176,15 @@ export function ChannelDialog({
       );
       await onSave({ name: name.trim(), url: url.trim(), headers, sourceUrl });
       writeDraft(channel, null);
-      onOpenChange(false);
+      if (!next) return onOpenChange(false);
+      setAddedCount((n) => n + 1);
+      setName("");
+      setUrl("");
+      setSourceUrl(undefined);
+      setLink("");
+      setFound([]);
+      setFindError(null);
+      findRef.current?.focus();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -202,6 +215,7 @@ export function ChannelDialog({
                 autoComplete="off"
                 data-1p-ignore
                 data-lpignore="true"
+                ref={findRef}
                 id="ch-find"
                 value={link}
                 onChange={(e) => setLink(e.target.value)}
@@ -327,6 +341,7 @@ export function ChannelDialog({
               id="ch-url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && canSave && save(!channel)}
               placeholder="https://example.com/live/index.m3u8"
               className="bg-zinc-800 border-zinc-700"
             />
@@ -406,10 +421,18 @@ export function ChannelDialog({
           ) : (
             <span />
           )}
-          <Button onClick={save} disabled={!name.trim() || !url.trim() || saving}>
-            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {channel ? "Save" : "Add channel"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {addedCount > 0 && <span className="text-xs text-zinc-500">{addedCount} added</span>}
+            {!channel && (
+              <Button variant="secondary" onClick={() => save(true)} disabled={!canSave}>
+                Add &amp; next
+              </Button>
+            )}
+            <Button onClick={() => save()} disabled={!canSave}>
+              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {channel ? "Save" : "Add channel"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
