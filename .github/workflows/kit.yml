@@ -23,3 +23,14 @@ jobs:
           gh release view kit >/dev/null 2>&1 || gh release create kit --title "Spaceflix kit" \
             --notes "Unzip, then double-click Start Spaceflix.cmd (Windows) or run ./spaceflix.sh / make run (Mac, Linux). Needs Docker Desktop."
           gh release upload kit spaceflix.zip --clobber
+      # Same file in Google Drive (My Drive/Spaceflix/spaceflix.zip), overwritten
+      # in place so its share link never changes. Needs the RCLONE_CONF secret
+      # (an rclone config with a remote named "gdrive"); skipped without it.
+      - env:
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+        run: |
+          [ -n "$RCLONE_CONF" ] || { echo "No RCLONE_CONF secret, skipping Drive."; exit 0; }
+          sudo apt-get install -y -qq rclone
+          printf '%s' "$RCLONE_CONF" > rclone.conf
+          rclone --config rclone.conf copyto spaceflix.zip gdrive:Spaceflix/spaceflix.zip
+          rm rclone.conf
