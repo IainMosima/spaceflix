@@ -9,6 +9,10 @@ import { extractInfoHashFromMagnet } from "@/lib/torrent-cache-actions";
 const ADD_TIMEOUT_MS = 25_000;
 const ENGLISH = /\b(en|eng|english)\b/i;
 
+// VLC buffers this much (ms) before playing, so a slow or busy Wi-Fi
+// (phone ↔ laptop on 2.4 GHz) doesn't stall and restart playback. Default is 1 s.
+const VLC_NETWORK_CACHING_MS = 15_000;
+
 /**
  * Everything an external player needs for one video.
  * `?format=json` → URLs for the app's VLC dialog; default → an M3U playlist VLC
@@ -82,7 +86,11 @@ export async function GET(
     });
   }
 
-  const lines = ["#EXTM3U", "#EXTVLCOPT:sub-language=eng,en,English"];
+  const lines = [
+    "#EXTM3U",
+    "#EXTVLCOPT:sub-language=eng,en,English",
+    `#EXTVLCOPT:network-caching=${VLC_NETWORK_CACHING_MS}`,
+  ];
   if (subUrl) lines.push(`#EXTVLCOPT:input-slave=${subUrl}`);
   lines.push(`#EXTINF:-1,${title.replace(/[\r\n]/g, " ")}`, streamUrl, "");
   return new NextResponse(lines.join("\n"), {
