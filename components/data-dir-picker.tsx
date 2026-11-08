@@ -122,7 +122,7 @@ export function DataDirPicker() {
           </Button>
           <p className="text-xs text-zinc-600">
             {report?.docker
-              ? "Running in Docker: pick any folder inside your home folder. "
+              ? "Running in Docker: pick a folder on this computer. "
               : ""}
             Switching restarts the torrent engine.
           </p>

@@ -35,7 +35,11 @@ export async function GET(request: NextRequest) {
 
     const entries = readdirSync(local, { withFileTypes: true })
       .filter((d) => d.isDirectory() && !d.name.startsWith("."))
-      .map((d) => ({ name: d.name, path: toHostPath(resolve(local, d.name)) }))
+      // Windows drives (/drives/c) read as "C:".
+      .map((d) => ({
+        name: local === "/drives" ? `${d.name.toUpperCase()}:` : d.name,
+        path: toHostPath(resolve(local, d.name)),
+      }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     const response: BrowseResponse = { path: target, parent, entries };

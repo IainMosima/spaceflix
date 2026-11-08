@@ -20,6 +20,19 @@ $env:MEDIA_ROOT = $data
 $env:HOST_DATA_DIR = $data
 $env:HOST_HOME = $homeDir
 
+# Every drive (C:, D:, USB...) inside the container at /drives/<letter>, so the
+# app's Settings can switch to any folder on any drive while it runs.
+$drives = Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue |
+  Where-Object { $_.Root -match '^[A-Za-z]:\\$' -and $null -ne $_.Free }
+$lines = @('services:', '  spaceflix:', '    volumes:')
+foreach ($d in $drives) {
+  $lines += '      - type: bind'
+  $lines += "        source: $($d.Name):/"
+  $lines += "        target: /drives/$($d.Name.ToLower())"
+}
+Set-Content -Path 'docker-compose.drives.yml' -Value $lines -Encoding ascii
+$compose = @('compose', '-f', 'docker-compose.yml', '-f', 'docker-compose.drives.yml')
+
 function Wait-Docker {
   if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Write-Host "Install Docker Desktop first: https://docs.docker.com/get-docker/"; exit 1
@@ -37,15 +50,15 @@ function Wait-Docker {
 }
 
 switch ($Action) {
-  'stop' { docker compose stop; Write-Host "Spaceflix stopped." }
-  'logs' { docker compose logs -f --tail 50 }
+  'stop' { docker @compose stop; Write-Host "Spaceflix stopped." }
+  'logs' { docker @compose logs -f --tail 50 }
   default {
     Wait-Docker
     New-Item -ItemType Directory -Force -Path $data | Out-Null
     Write-Host "Getting the latest Spaceflix..."
-    docker compose pull
+    docker @compose pull
     if ($LASTEXITCODE -ne 0) { Write-Host "Couldn't check for updates (offline?). Using the version you have." }
-    docker compose up -d
+    docker @compose up -d
     if ($LASTEXITCODE -ne 0) { exit 1 }
     docker image prune -f *> $null
     Write-Host ""

@@ -15,6 +15,10 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 
 const inDocker = () => process.env.SPACEFLIX_DOCKER === "1";
 const HOST_ROOT = "/host"; // the user's home, inside the container
+// Windows kit: every drive is mounted at /drives/<letter> (C: → /drives/c),
+// so Settings can pick any folder on any drive while the app runs.
+const DRIVES = "/drives";
+const THIS_PC = "This PC"; // how the picker shows /drives
 
 /** Computer path → path this process can open. Identity outside Docker. */
 /**
@@ -23,7 +27,8 @@ const HOST_ROOT = "/host"; // the user's home, inside the container
  * drive paths with forward slashes, like the kit's HOST_HOME/HOST_DATA_DIR.
  */
 export function absHostPath(p: string): string {
-  if (/^[A-Za-z]:[\\/]/.test(p)) return p.replace(/\\/g, "/").replace(/\/+$/, "");
+  if (p === THIS_PC) return p;
+  if (/^[A-Za-z]:([\\/]|$)/.test(p)) return p.replace(/\\/g, "/").replace(/\/+$/, "");
   return resolve(p);
 }
 
@@ -44,6 +49,11 @@ export function toLocalPath(hostPath: string): string {
   if (within(hostPath, home)) {
     return HOST_ROOT + hostPath.slice(home.length);
   }
+  if (hostPath === THIS_PC) return DRIVES;
+  const drive = /^([A-Za-z]):(\/.*)?$/.exec(hostPath);
+  if (drive && existsSync(`${DRIVES}/${drive[1].toLowerCase()}`)) {
+    return `${DRIVES}/${drive[1].toLowerCase()}${drive[2] ?? ""}`;
+  }
   return hostPath;
 }
 
@@ -58,12 +68,18 @@ export function toHostPath(localPath: string): string {
   if (home && (localPath === HOST_ROOT || localPath.startsWith(HOST_ROOT + "/"))) {
     return home + localPath.slice(HOST_ROOT.length);
   }
+  if (localPath === DRIVES) return THIS_PC;
+  const drive = /^\/drives\/([a-z])(\/.*)?$/.exec(localPath);
+  if (drive) return `${drive[1].toUpperCase()}:${drive[2] ?? "/"}`;
   return localPath;
 }
 
 /** Where the Settings folder picker starts browsing (a local path). */
 export function getMediaRoot(): string {
-  if (inDocker()) return process.env.HOST_HOME ? HOST_ROOT : "/app/data";
+  if (inDocker()) {
+    if (existsSync(DRIVES)) return DRIVES; // Windows: start at "This PC"
+    return process.env.HOST_HOME ? HOST_ROOT : "/app/data";
+  }
   return resolve(process.env.MEDIA_ROOT || homedir());
 }
 
