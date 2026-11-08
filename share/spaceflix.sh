@@ -3,6 +3,25 @@
 # start (default): gets the latest version, starts it, opens the browser.
 cd "$(dirname "$0")" || exit 1
 
+# Keep the kit itself current: fetch the latest from GitHub, replace what
+# changed, and start again with the new scripts. Offline? Carry on as is.
+# (Copy and restart are one if-block, so sh has read it all before the
+# file it's running from is replaced.)
+if [ "${1:-start}" = start ] && [ -z "$SPACEFLIX_UPDATED" ] && command -v curl >/dev/null && command -v unzip >/dev/null; then
+  KIT_TMP=$(mktemp -d)
+  if curl -fsSL --max-time 20 -o "$KIT_TMP/kit.zip" https://github.com/IainMosima/movie-app/releases/download/kit/spaceflix.zip \
+     && unzip -qo "$KIT_TMP/kit.zip" -d "$KIT_TMP/kit"; then
+    KIT_CHANGED=
+    for f in "$KIT_TMP"/kit/*; do
+      cmp -s "$f" "./$(basename "$f")" || { cp "$f" .; echo "Updated $(basename "$f")"; KIT_CHANGED=1; }
+    done
+    rm -rf "$KIT_TMP"
+    [ -n "$KIT_CHANGED" ] && { chmod +x spaceflix.sh; SPACEFLIX_UPDATED=1 exec sh ./spaceflix.sh "$@"; }
+  else
+    rm -rf "$KIT_TMP"; echo "Couldn't check for kit updates (offline?). Carrying on."
+  fi
+fi
+
 case "$(uname -s)" in
   Darwin) IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null); MOVIES="$HOME/Movies" ;;
   *) IP=$(hostname -I 2>/dev/null | awk '{print $1}'); MOVIES="$HOME/Videos" ;;

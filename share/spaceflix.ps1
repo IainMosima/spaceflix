@@ -3,6 +3,37 @@
 param([string]$Action = "start")
 Set-Location $PSScriptRoot
 
+# Keep the kit itself current: fetch the latest from GitHub, replace what
+# changed, and start again with the new scripts. Offline? Carry on as is.
+# ("Start Spaceflix.cmd" is left alone: Windows reads it while it runs.)
+if ($Action -eq 'start' -and -not $env:SPACEFLIX_UPDATED) {
+  try {
+    $zip = Join-Path $env:TEMP 'spaceflix-kit.zip'
+    $tmp = Join-Path $env:TEMP 'spaceflix-kit'
+    Invoke-WebRequest 'https://github.com/IainMosima/movie-app/releases/download/kit/spaceflix.zip' `
+      -OutFile $zip -UseBasicParsing -TimeoutSec 20
+    Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    Expand-Archive $zip $tmp -Force
+    $changed = $false
+    foreach ($f in Get-ChildItem $tmp -File) {
+      if ($f.Name -eq 'Start Spaceflix.cmd') { continue }
+      $dest = Join-Path $PSScriptRoot $f.Name
+      if (-not (Test-Path $dest) -or (Get-FileHash $f.FullName).Hash -ne (Get-FileHash $dest).Hash) {
+        Copy-Item $f.FullName $dest -Force
+        Write-Host "Updated $($f.Name)"
+        $changed = $true
+      }
+    }
+    if ($changed) {
+      $env:SPACEFLIX_UPDATED = '1'
+      & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'spaceflix.ps1') start
+      exit $LASTEXITCODE
+    }
+  } catch {
+    Write-Host "Couldn't check for kit updates (offline?). Carrying on."
+  }
+}
+
 # Docker wants forward slashes; the app compares paths that way too.
 $homeDir = $HOME -replace '\\', '/'
 # D: drive if there is one, else Videos on C:, else Downloads.
