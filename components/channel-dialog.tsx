@@ -112,6 +112,9 @@ export function ChannelDialog({ open, onOpenChange, channel, onSave }: ChannelDi
               Name
             </label>
             <Input
+              autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
               id="ch-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -125,6 +128,9 @@ export function ChannelDialog({ open, onOpenChange, channel, onSave }: ChannelDi
               Stream link (.m3u8)
             </label>
             <Input
+              autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
               id="ch-url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -142,6 +148,9 @@ export function ChannelDialog({ open, onOpenChange, channel, onSave }: ChannelDi
               {rows.map((row, i) => (
                 <div key={i} className="flex gap-2">
                   <Input
+                    autoComplete="off"
+                    data-1p-ignore
+                    data-lpignore="true"
                     aria-label="Header name"
                     value={row.key}
                     onChange={(e) => setRow(i, { key: e.target.value })}
@@ -149,6 +158,9 @@ export function ChannelDialog({ open, onOpenChange, channel, onSave }: ChannelDi
                     className="bg-zinc-800 border-zinc-700 w-36 shrink-0"
                   />
                   <Input
+                    autoComplete="off"
+                    data-1p-ignore
+                    data-lpignore="true"
                     aria-label={`${row.key || "Header"} value`}
                     value={row.value}
                     onChange={(e) => setRow(i, { value: e.target.value })}
