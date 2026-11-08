@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { VideoPlayer } from "@/components/video-player";
 import { useNextEpisode } from "@/hooks/use-next-episode";
 import { useVlcCopy } from "@/hooks/use-vlc-copy";
+import { VlcIcon } from "@/components/vlc-icon";
 import { episodeCode } from "@/lib/episode-order";
 import { Loader2, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -622,8 +623,9 @@ function WatchPlayer({ params }: WatchPageProps) {
                 variant="ghost"
                 size="sm"
                 onClick={() => copyVlc(infoHash, fileIndexNum, title)}
-                className="text-zinc-500"
+                className="text-zinc-500 gap-2"
               >
+                <VlcIcon className="h-4 w-4" />
                 Copy VLC link
               </Button>
             )}
@@ -653,6 +655,7 @@ function WatchPlayer({ params }: WatchPageProps) {
         prevLabel={prevLabel}
         onPrev={goPrev}
         onBufferHealth={handleBufferHealth}
+        onVlc={() => copyVlc(infoHash, fileIndexNum, title)}
       />
 
       {/* Next: keep the episode just watched, or delete it once the next one is under way. */}

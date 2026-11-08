@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Loader2, MonitorPlay, Pencil, Plus, Radio, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Radio, Trash2 } from "lucide-react";
+import { VlcIcon } from "@/components/vlc-icon";
 import { Button } from "@/components/ui/button";
 import { ChannelDialog } from "@/components/channel-dialog";
 import { copyText, useLanOrigin } from "@/hooks/use-vlc-copy";
@@ -112,7 +113,7 @@ export default function LivePage() {
                   )
                 }
               >
-                <MonitorPlay className="h-4 w-4" />
+                <VlcIcon className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"

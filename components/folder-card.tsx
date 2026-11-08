@@ -3,15 +3,19 @@
 import { Folder, ChevronRight, Film, Tv } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { VlcIcon } from "@/components/vlc-icon";
 import type { LibraryFolderWithUsage } from "@/types";
 
 export function FolderCard({
   folder,
   onOpen,
+  onVLC,
   watchedCount = 0,
 }: {
   folder: LibraryFolderWithUsage;
   onOpen: () => void;
+  /** Copy a VLC link for the folder's next unwatched item. */
+  onVLC?: () => void;
   watchedCount?: number;
 }) {
   const isSeries = folder.category === "series";
@@ -52,6 +56,21 @@ export function FolderCard({
           <Badge className="shrink-0 bg-amber-900/30 text-amber-300/90 text-[10px] sm:text-xs px-1.5">
             {folder.cachedFormatted}
           </Badge>
+        )}
+
+        {onVLC && folder.itemCount > 0 && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onVLC();
+            }}
+            className="h-10 w-10 shrink-0 rounded-md flex items-center justify-center hover:bg-zinc-700/60"
+            aria-label={`Copy VLC link for the next episode in ${folder.name}`}
+            title="Copy VLC link (next unwatched)"
+          >
+            <VlcIcon className="h-4 w-4" />
+          </button>
         )}
 
         <ChevronRight className="h-5 w-5 text-zinc-700 group-hover:text-zinc-400 shrink-0 transition-colors" />

@@ -14,7 +14,6 @@ import {
   X,
   MoreVertical,
   FolderOutput,
-  MonitorPlay,
   ListVideo,
   GripVertical,
   ArrowDownAZ,
@@ -25,6 +24,7 @@ import {
   Download,
   Pause,
 } from "lucide-react";
+import { VlcIcon } from "@/components/vlc-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -518,7 +518,7 @@ export function FolderDialog({
                       aria-label="Copy VLC link"
                       title="Copy VLC link"
                     >
-                      <MonitorPlay className="h-4 w-4" />
+                      <VlcIcon className="h-4 w-4" />
                     </Button>
 
                     {cached && (

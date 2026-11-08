@@ -8,13 +8,13 @@ import {
   Eraser,
   MoreVertical,
   ListVideo,
-  MonitorPlay,
   FolderInput,
   Film,
   Tv,
   CircleCheck,
   CircleDashed,
 } from "lucide-react";
+import { VlcIcon } from "@/components/vlc-icon";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -141,6 +141,20 @@ export function LibraryCard({
           </Button>
         )}
 
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-10 w-10 shrink-0 hover:bg-zinc-800"
+          aria-label={`Copy VLC link for ${item.name}`}
+          title="Copy VLC link"
+          onClick={(e) => {
+            e.stopPropagation();
+            onVLC();
+          }}
+        >
+          <VlcIcon className="h-4 w-4" />
+        </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
             <Button
@@ -162,7 +176,7 @@ export function LibraryCard({
               Browse files
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => onVLC()}>
-              <MonitorPlay className="h-4 w-4" />
+              <VlcIcon className="h-4 w-4" />
               Copy VLC link
             </DropdownMenuItem>
 

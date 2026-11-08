@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { Download, Loader2, MonitorPlay, Pause, Play, Trash2 } from "lucide-react";
+import { Download, Loader2, Pause, Play, Trash2 } from "lucide-react";
+import { VlcIcon } from "@/components/vlc-icon";
 import type { StorageEntry, StorageFile } from "@/types";
 import { episodeCode, showName } from "@/lib/episode-order";
 
@@ -328,7 +329,7 @@ export function DownloadsDialog({
                       aria-label={`Copy VLC link for ${d.title}`}
                       title="Copy VLC link"
                     >
-                      <MonitorPlay className="h-4 w-4" />
+                      <VlcIcon className="h-4 w-4" />
                     </button>
                     {(d.state === "downloading" || d.state === "queued" || d.state === "error") && (
                       <button
@@ -499,7 +500,7 @@ export function DownloadsDialog({
                                     aria-label={`Copy VLC link for ${label}`}
                                     title="Copy VLC link"
                                   >
-                                    <MonitorPlay className="h-4 w-4" />
+                                    <VlcIcon className="h-4 w-4" />
                                   </button>
                                 </>
                               )}

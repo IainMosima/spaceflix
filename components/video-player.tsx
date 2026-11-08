@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn, formatDuration } from "@/lib/utils";
+import { VlcIcon } from "@/components/vlc-icon";
 
 interface VideoPlayerProps {
   src: string;
@@ -57,6 +58,8 @@ interface VideoPlayerProps {
   onBufferHealth?: (secondsAhead: number) => void;
   /** Live HLS (.m3u8): hls.js / native HLS, no seek bar, no torrent recovery. */
   live?: boolean;
+  /** Copy this video's VLC link. Absent hides the button. */
+  onVlc?: () => void;
 }
 
 const PROGRESS_REPORT_INTERVAL_MS = 10_000;
@@ -84,6 +87,7 @@ export function VideoPlayer({
   onPrev,
   onBufferHealth,
   live = false,
+  onVlc,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -793,8 +797,14 @@ export function VideoPlayer({
           msRequestFullscreen?: () => Promise<void>;
         };
 
+        // Some browsers (TVs, embedded webviews) refuse a <div>; the <video> itself still works.
+        const tryVideo = async () => {
+          if (videoElem?.requestFullscreen) await videoElem.requestFullscreen();
+          else if (videoElem?.webkitEnterFullscreen) await videoElem.webkitEnterFullscreen();
+          else throw new Error("Fullscreen not supported");
+        };
         if (elem.requestFullscreen) {
-          await elem.requestFullscreen();
+          await elem.requestFullscreen().catch(tryVideo);
         } else if (elem.webkitRequestFullscreen) {
           await elem.webkitRequestFullscreen();
         } else if (elem.mozRequestFullScreen) {
@@ -1737,6 +1747,19 @@ export function VideoPlayer({
               </DropdownMenu>
             )}
 
+
+            {/* Copy VLC link - not on TV (no VLC there) */}
+            {onVlc && !prefersAlwaysOnControls && (
+              <button
+                type="button"
+                {...handleTVClick(onVlc)}
+                aria-label="Copy VLC link"
+                title="Copy VLC link"
+                className="flex items-center justify-center rounded-full cursor-pointer h-10 w-10 hover:bg-white/10 active:bg-white/30 focus:bg-white/20 focus:ring-2 focus:ring-white focus:outline-none"
+              >
+                <VlcIcon className="h-5 w-5" />
+              </button>
+            )}
 
             {/* PiP - hide on TV as it may not be supported */}
             {!prefersAlwaysOnControls && (

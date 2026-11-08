@@ -16,8 +16,8 @@ import {
   Eraser,
   Download,
   Pause,
-  MonitorPlay,
 } from "lucide-react";
+import { VlcIcon } from "@/components/vlc-icon";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -555,7 +555,7 @@ export function FilePicker({
                                 title="Copy VLC link"
                                 aria-label="Copy VLC link"
                               >
-                                <MonitorPlay className="h-4 w-4" />
+                                <VlcIcon className="h-4 w-4" />
                               </button>
                             )}
                             <button

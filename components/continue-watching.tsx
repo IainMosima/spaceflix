@@ -1,6 +1,7 @@
 "use client";
 
-import { MonitorPlay, Play, X } from "lucide-react";
+import { Play, X } from "lucide-react";
+import { VlcIcon } from "@/components/vlc-icon";
 import { progressPct, timeLeft } from "@/hooks/use-watch-progress";
 import { useVlcCopy } from "@/hooks/use-vlc-copy";
 import { extractInfoHashFromMagnet } from "@/lib/torrent-cache-actions";
@@ -101,7 +102,7 @@ function VlcButton({
       aria-label="Copy VLC link"
       title="Copy VLC link"
     >
-      <MonitorPlay className="h-4 w-4" />
+      <VlcIcon className="h-4 w-4" />
     </button>
   );
 }
