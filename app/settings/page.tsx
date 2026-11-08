@@ -14,9 +14,9 @@ import { StoragePanel } from "@/components/storage-panel";
 export default function SettingsPage() {
   const { settings, isLoading, updateSettings, resetSettings } = useSettings();
 
-  const [maxConnections, setMaxConnections] = useState(55);
+  const [maxConnections, setMaxConnections] = useState(10);
   const [downloadLimit, setDownloadLimit] = useState(-1);
-  const [uploadLimit, setUploadLimit] = useState(-1);
+  const [uploadLimit, setUploadLimit] = useState(0);
   const [cleanupDelay, setCleanupDelay] = useState(30);
   const [prebufferSeconds, setPrebufferSeconds] = useState(90);
   const [bufferSizeMB, setBufferSizeMB] = useState(200);
@@ -115,7 +115,7 @@ export default function SettingsPage() {
                   className="bg-zinc-800 border-zinc-700 w-32"
                 />
                 <p className="text-xs text-zinc-600 mt-1">
-                  Maximum number of peer connections (1-200)
+                  Per torrent. Fewer is gentler on your router; 10 is plenty.
                 </p>
               </div>
 
@@ -146,7 +146,7 @@ export default function SettingsPage() {
                     className="bg-zinc-800 border-zinc-700"
                   />
                   <p className="text-xs text-zinc-600 mt-1">
-                    -1 for unlimited
+                    0 = never upload (best on slow internet), -1 unlimited
                   </p>
                 </div>
               </div>
