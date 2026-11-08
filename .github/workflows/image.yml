@@ -9,6 +9,11 @@ on:
     paths-ignore: ["share/**", "**.md"]
   workflow_dispatch:
 
+# A newer push replaces a build that's still running.
+concurrency:
+  group: image
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

@@ -1,0 +1,25 @@
+# Every push that changes share/ rebuilds the kit and puts it at a fixed link:
+# https://github.com/IainMosima/movie-app/releases/download/kit/spaceflix.zip
+name: kit
+
+on:
+  push:
+    branches: [main]
+    paths: ["share/**", ".github/workflows/kit.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cd share && zip -qr ../spaceflix.zip . -x '.*'
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view kit >/dev/null 2>&1 || gh release create kit --title "Spaceflix kit" \
+            --notes "Unzip, then double-click Start Spaceflix.cmd (Windows) or run ./spaceflix.sh / make run (Mac, Linux). Needs Docker Desktop."
+          gh release upload kit spaceflix.zip --clobber
