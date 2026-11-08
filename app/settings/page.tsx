@@ -18,6 +18,7 @@ export default function SettingsPage() {
   const [downloadLimit, setDownloadLimit] = useState(-1);
   const [uploadLimit, setUploadLimit] = useState(0);
   const [parallelDownloads, setParallelDownloads] = useState(3);
+  const [bgLimitKB, setBgLimitKB] = useState(300); // KB/s, -1 = none
   const [cleanupDelay, setCleanupDelay] = useState(30);
   const [prebufferSeconds, setPrebufferSeconds] = useState(90);
   const [bufferSizeMB, setBufferSizeMB] = useState(200);
@@ -32,6 +33,8 @@ export default function SettingsPage() {
       setDownloadLimit(settings.downloadLimit);
       setUploadLimit(settings.uploadLimit);
       setParallelDownloads(settings.parallelDownloads ?? 3);
+      const bg = settings.backgroundDownloadLimit ?? 307200;
+      setBgLimitKB(bg < 0 ? -1 : Math.round(bg / 1024));
       setCleanupDelay(settings.cleanupDelaySeconds);
       setPrebufferSeconds(settings.prebufferSeconds);
       setBufferSizeMB(settings.bufferSizeMB || 300);
@@ -47,6 +50,7 @@ export default function SettingsPage() {
         downloadLimit,
         uploadLimit,
         parallelDownloads,
+        backgroundDownloadLimit: bgLimitKB < 0 ? -1 : Math.round(bgLimitKB * 1024),
         cleanupDelaySeconds: cleanupDelay,
         prebufferSeconds,
         bufferSizeMB,
@@ -136,6 +140,22 @@ export default function SettingsPage() {
                 />
                 <p className="text-xs text-zinc-600 mt-1">
                   The rest wait their turn. All pause while you watch, so playback stays smooth.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-sm text-zinc-400 mb-2 block">
+                  Background download limit (KB/s)
+                </label>
+                <Input
+                  type="number"
+                  value={bgLimitKB}
+                  onChange={(e) => setBgLimitKB(Number(e.target.value))}
+                  min={-1}
+                  className="bg-zinc-800 border-zinc-700 w-32"
+                />
+                <p className="text-xs text-zinc-600 mt-1">
+                  Only while nothing is playing, so the house keeps some internet. Watching always gets full speed. -1 = no limit.
                 </p>
               </div>
 

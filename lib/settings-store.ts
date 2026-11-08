@@ -15,6 +15,9 @@ const DEFAULT_SETTINGS: EngineSettings = {
   uploadLimit: 0,
   maxConnections: 10,
   parallelDownloads: 3,
+  // Cap while only background downloads run (bytes/s, -1 none), so the house
+  // keeps some internet. Watching always gets full speed.
+  backgroundDownloadLimit: 307200,
   cleanupDelaySeconds: 30,
   prebufferSeconds: 90, // wait up to 90s for the initial safety buffer
   bufferSizeMB: 200, // cache ~200MB so TVs can coast through peer stalls
