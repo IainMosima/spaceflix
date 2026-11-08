@@ -71,4 +71,10 @@ export const ChannelSchema = z.object({
       (h) => Object.values(h).every((v) => !/[\r\n]/.test(v)),
       "Header values can't contain line breaks",
     ),
+  sourceUrl: z
+    .string()
+    .trim()
+    .url("Invalid source link")
+    .refine((u) => /^https?:\/\//i.test(u), "Only http(s) links")
+    .optional(),
 });

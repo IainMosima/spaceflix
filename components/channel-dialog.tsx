@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Channel } from "@/types";
+import type { StreamCandidate } from "@/lib/m3u8-extract";
 
 const COMMON_HEADERS = ["Referer", "Origin", "User-Agent", "Cookie", "Authorization"];
 
 type Row = { key: string; value: string };
-type Draft = { name: string; url: string; rows: Row[] };
+type Draft = { name: string; url: string; rows: Row[]; sourceUrl?: string };
 
 // Unsaved typing survives closing the dialog or reloading the page (this browser only).
 const draftKey = (channel?: Channel) => `spaceflix:channel-draft:${channel?.id ?? "new"}`;
@@ -20,6 +21,7 @@ function fromChannel(channel?: Channel): Draft {
     name: channel?.name ?? "",
     url: channel?.url ?? "",
     rows: Object.entries(channel?.headers ?? {}).map(([key, value]) => ({ key, value })),
+    sourceUrl: channel?.sourceUrl,
   };
 }
 
@@ -49,6 +51,8 @@ interface ChannelDialogProps {
   onSave: (channel: Omit<Channel, "id">) => Promise<void>;
   /** Saved channels offered as a "Copy from" template when adding. */
   templates?: Channel[];
+  /** Save a found stream straight away as a new channel (dialog stays open). */
+  onAdd?: (channel: Omit<Channel, "id">) => Promise<void>;
 }
 
 /** Mount with a `key` per channel so the form starts from that channel's values. */
@@ -58,23 +62,88 @@ export function ChannelDialog({
   channel,
   onSave,
   templates = [],
+  onAdd,
 }: ChannelDialogProps) {
   // Only mounted after a click, so reading localStorage here is safe (no SSR).
   const [initial] = useState(() => readDraft(channel) ?? fromChannel(channel));
   const [name, setName] = useState(initial.name);
   const [url, setUrl] = useState(initial.url);
   const [rows, setRows] = useState<Row[]>(initial.rows);
-  const dirty = JSON.stringify({ name, url, rows }) !== JSON.stringify(fromChannel(channel));
+  const [sourceUrl, setSourceUrl] = useState(initial.sourceUrl);
+  const dirty =
+    JSON.stringify({ name, url, rows, sourceUrl }) !== JSON.stringify(fromChannel(channel));
 
   useEffect(() => {
-    writeDraft(channel, dirty ? { name, url, rows } : null);
-  }, [channel, dirty, name, url, rows]);
+    writeDraft(channel, dirty ? { name, url, rows, sourceUrl } : null);
+  }, [channel, dirty, name, url, rows, sourceUrl]);
+
+  // "Paste a page or playlist link" finder.
+  const [link, setLink] = useState("");
+  const [finding, setFinding] = useState(false);
+  const [found, setFound] = useState<(StreamCandidate & { added?: boolean })[]>([]);
+  const [findError, setFindError] = useState<string | null>(null);
+
+  const find = async () => {
+    setFinding(true);
+    setFindError(null);
+    setFound([]);
+    try {
+      const res = await fetch("/api/channels/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: link }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+      setFound(data.candidates);
+    } catch (err) {
+      setFindError((err as Error).message);
+    } finally {
+      setFinding(false);
+    }
+  };
+  const patchFound = (i: number, patch: Partial<StreamCandidate & { added: boolean }>) =>
+    setFound((f) => f.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+  const setFoundHeader = (i: number, key: string, value: string | null) => {
+    const headers = { ...found[i].headers };
+    if (value === null) delete headers[key];
+    else headers[key] = value;
+    patchFound(i, { headers });
+  };
+  // The source to re-scan later; a direct .m3u8 link has nothing to re-scan.
+  const sourceFor = (c: StreamCandidate) => (c.url === link.trim() ? undefined : link.trim());
+  const takeFound = (c: StreamCandidate) => {
+    setUrl(c.url);
+    setRows(Object.entries(c.headers).map(([key, value]) => ({ key, value })));
+    setSourceUrl(sourceFor(c));
+    if (!name.trim() && c.name) setName(c.name);
+    setError(null);
+  };
+  const addFound = async (i: number) => {
+    const c = found[i];
+    if (!onAdd || c.added) return;
+    try {
+      await onAdd({
+        name: c.name || `Channel ${i + 1}`,
+        url: c.url,
+        headers: c.headers,
+        sourceUrl: sourceFor(c),
+      });
+      patchFound(i, { added: true });
+    } catch (err) {
+      setFindError((err as Error).message);
+    }
+  };
+  const addAll = async () => {
+    for (let i = 0; i < found.length; i++) await addFound(i);
+  };
 
   const discard = () => {
     const clean = fromChannel(channel);
     setName(clean.name);
     setUrl(clean.url);
     setRows(clean.rows);
+    setSourceUrl(clean.sourceUrl);
     setError(null);
   };
   // Template: take its link and headers, keep whatever name is typed.
@@ -83,6 +152,7 @@ export function ChannelDialog({
     if (!t) return;
     setUrl(t.url);
     setRows(fromChannel(t).rows);
+    setSourceUrl(t.sourceUrl);
     setError(null);
   };
   const [saving, setSaving] = useState(false);
@@ -99,7 +169,7 @@ export function ChannelDialog({
       const headers = Object.fromEntries(
         rows.filter((r) => r.key.trim()).map((r) => [r.key.trim(), r.value.trim()]),
       );
-      await onSave({ name: name.trim(), url: url.trim(), headers });
+      await onSave({ name: name.trim(), url: url.trim(), headers, sourceUrl });
       writeDraft(channel, null);
       onOpenChange(false);
     } catch (err) {
@@ -115,7 +185,7 @@ export function ChannelDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Clicking outside doesn't close it; Esc / ✕ still do, and the draft is kept either way. */}
       <DialogContent
-        className="bg-zinc-900 border-zinc-800"
+        className="bg-zinc-900 border-zinc-800 max-h-[90vh] overflow-y-auto"
         onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogHeader>
@@ -123,6 +193,91 @@ export function ChannelDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
+            <label htmlFor="ch-find" className="text-sm text-zinc-400 mb-2 block">
+              Paste a page or playlist link
+            </label>
+            <div className="flex gap-2">
+              <Input
+                autoComplete="off"
+                data-1p-ignore
+                data-lpignore="true"
+                id="ch-find"
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && link.trim() && !finding && find()}
+                placeholder="https://… page, .m3u playlist or .m3u8"
+                className="bg-zinc-800 border-zinc-700"
+              />
+              <Button onClick={find} disabled={!link.trim() || finding} className="gap-2 shrink-0">
+                {finding ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+                Find stream
+              </Button>
+            </div>
+            {findError && <p className="text-sm text-red-400 mt-2">{findError}</p>}
+
+            {found.length > 0 && (
+              <div className="mt-3 space-y-2 max-h-72 overflow-y-auto pr-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-zinc-500">
+                    Found {found.length} stream{found.length > 1 ? "s" : ""}
+                  </p>
+                  {onAdd && found.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={addAll}
+                      className="text-xs text-purple-300 hover:text-white"
+                    >
+                      Add all
+                    </button>
+                  )}
+                </div>
+                {found.map((c, i) => (
+                  <div key={c.url} className="rounded-md border border-zinc-800 p-2 space-y-2">
+                    {c.name && <p className="text-sm font-medium truncate">{c.name}</p>}
+                    <p className="text-xs text-zinc-400 break-all font-mono">{c.url}</p>
+                    {Object.entries(c.headers).map(([k, v]) => (
+                      <div key={k} className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-500 w-24 shrink-0 truncate">{k}</span>
+                        <Input
+                          autoComplete="off"
+                          data-1p-ignore
+                          data-lpignore="true"
+                          aria-label={`${k} value`}
+                          value={v}
+                          onChange={(e) => setFoundHeader(i, k, e.target.value)}
+                          className="bg-zinc-800 border-zinc-700 h-7 text-xs"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          aria-label={`Remove ${k}`}
+                          onClick={() => setFoundHeader(i, k, null)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="secondary" onClick={() => takeFound(c)}>
+                        Use this
+                      </Button>
+                      {onAdd && (
+                        <Button size="sm" disabled={c.added} onClick={() => addFound(i)}>
+                          {c.added ? "Added" : "Add as channel"}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           {!channel && templates.length > 0 && (
             <div>
               <label htmlFor="ch-template" className="text-sm text-zinc-400 mb-2 block">

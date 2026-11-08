@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus, Radio, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { VlcIcon } from "@/components/vlc-icon";
 import { Button } from "@/components/ui/button";
 import { ChannelDialog } from "@/components/channel-dialog";
@@ -42,6 +42,26 @@ export default function LivePage() {
     load();
   };
 
+  const add = async (data: Omit<Channel, "id">) => {
+    await send("/api/channels", "POST", data);
+    toast.success(`Added ${data.name}`);
+    load();
+  };
+
+  const [refreshing, setRefreshing] = useState<string | null>(null);
+  const refresh = async (ch: Channel) => {
+    setRefreshing(ch.id);
+    try {
+      await send(`/api/channels/${ch.id}`, "POST");
+      toast.success(`${ch.name}: fresh link saved`);
+      load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRefreshing(null);
+    }
+  };
+
   const remove = async (ch: Channel) => {
     try {
       await send(`/api/channels/${ch.id}`, "DELETE");
@@ -58,7 +78,9 @@ export default function LivePage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold">Live</h1>
-            <p className="text-zinc-500 text-sm mt-1">Your HLS (.m3u8) channels</p>
+            <p className="text-zinc-500 text-sm mt-1">
+              Your channels. Flip with next/prev in the player
+            </p>
           </div>
           <Button className="gap-2" onClick={() => setEditing(null)}>
             <Plus className="h-4 w-4" />
@@ -74,23 +96,23 @@ export default function LivePage() {
 
         {channels?.length === 0 && (
           <div className="text-center py-12 bg-zinc-900/30 rounded-xl border border-zinc-800">
-            <Radio className="h-12 w-12 text-zinc-700 mx-auto mb-4" />
+            <Plus className="h-12 w-12 text-zinc-700 mx-auto mb-4" />
             <h3 className="font-medium text-zinc-400 mb-2">No channels yet</h3>
             <p className="text-sm text-zinc-600">
-              Add a .m3u8 link, plus any headers it needs (Referer, User-Agent, token).
+              Paste a page or playlist link and the app finds the stream, or add a .m3u8 by hand.
             </p>
           </div>
         )}
 
         <div className="space-y-3">
-          {channels?.map((ch) => (
+          {channels?.map((ch, i) => (
             <div
               key={ch.id}
               className="flex items-center gap-3 p-4 rounded-xl border border-zinc-800 bg-zinc-900/50 hover:border-zinc-700"
             >
               <Link href={`/live/${ch.id}`} className="flex-1 min-w-0 flex items-center gap-3">
-                <span className="h-10 w-10 shrink-0 rounded-lg bg-red-600/15 text-red-400 flex items-center justify-center">
-                  <Radio className="h-5 w-5" />
+                <span className="h-10 w-10 shrink-0 rounded-lg bg-red-600/15 text-red-400 flex items-center justify-center font-semibold tabular-nums">
+                  {i + 1}
                 </span>
                 <span className="min-w-0">
                   <span className="block font-medium truncate">{ch.name}</span>
@@ -115,6 +137,18 @@ export default function LivePage() {
               >
                 <VlcIcon className="h-4 w-4" />
               </Button>
+              {ch.sourceUrl && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Get a fresh link for ${ch.name}`}
+                  title="Get a fresh link from its source"
+                  disabled={refreshing === ch.id}
+                  onClick={() => refresh(ch)}
+                >
+                  <RefreshCw className={`h-4 w-4 ${refreshing === ch.id ? "animate-spin" : ""}`} />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -143,6 +177,7 @@ export default function LivePage() {
           onOpenChange={(o) => !o && setEditing(undefined)}
           channel={editing ?? undefined}
           onSave={save}
+          onAdd={add}
           templates={channels ?? []}
         />
       )}
