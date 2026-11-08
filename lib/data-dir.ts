@@ -17,14 +17,31 @@ const inDocker = () => process.env.SPACEFLIX_DOCKER === "1";
 const HOST_ROOT = "/host"; // the user's home, inside the container
 
 /** Computer path → path this process can open. Identity outside Docker. */
+/**
+ * A computer path, made absolute. Windows paths (C:\\… or D:/…) arrive in a
+ * Linux container, where resolve() would glue them onto the cwd: keep them as
+ * drive paths with forward slashes, like the kit's HOST_HOME/HOST_DATA_DIR.
+ */
+export function absHostPath(p: string): string {
+  if (/^[A-Za-z]:[\\/]/.test(p)) return p.replace(/\\/g, "/").replace(/\/+$/, "");
+  return resolve(p);
+}
+
+/** `p` is `dir` or inside it. Drive paths (Windows) ignore case. */
+function within(p: string, dir: string | undefined): dir is string {
+  if (!dir) return false;
+  const [a, b] = /^[A-Za-z]:/.test(dir) ? [p.toLowerCase(), dir.toLowerCase()] : [p, dir];
+  return a === b || a.startsWith(b + "/");
+}
+
 export function toLocalPath(hostPath: string): string {
   if (!inDocker()) return hostPath;
   const data = process.env.HOST_DATA_DIR;
-  if (data && (hostPath === data || hostPath.startsWith(data + "/"))) {
+  if (within(hostPath, data)) {
     return "/app/data" + hostPath.slice(data.length);
   }
   const home = process.env.HOST_HOME;
-  if (home && (hostPath === home || hostPath.startsWith(home + "/"))) {
+  if (within(hostPath, home)) {
     return HOST_ROOT + hostPath.slice(home.length);
   }
   return hostPath;
@@ -87,9 +104,11 @@ export function getDataDir(): string {
     readPointer(pointerPath()) ??
     (inDocker() ? null : readPointer(resolve(process.cwd(), ".active-data-dir")));
   if (saved) {
-    const local = toLocalPath(resolve(saved));
-    // In Docker, a folder outside the shared home can't be reached — skip it.
-    if (!inDocker() || local !== resolve(saved)) return local;
+    const host = absHostPath(saved);
+    const local = toLocalPath(host);
+    // In Docker, a folder outside the shared home can't be reached — skip it
+    // and use the mounted folder (never a path inside the container).
+    if (!inDocker() || local !== host) return local;
   }
   const envDir = process.env.DATA_DIR;
   if (envDir) return resolve(envDir);
@@ -110,7 +129,7 @@ export function getHostDataDir(): string {
  * container and be lost with it.
  */
 export function setDataDir(newPath: string): string {
-  const hostPath = resolve(newPath);
+  const hostPath = absHostPath(newPath);
   const local = toLocalPath(hostPath);
   if (inDocker() && local === hostPath) {
     throw new Error("In Docker, pick a folder inside your home folder — that's what the container can reach.");
