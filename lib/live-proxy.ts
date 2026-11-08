@@ -59,10 +59,14 @@ export const ChannelSchema = z.object({
   headers: z
     .record(z.string(), z.string())
     .default({})
-    .refine(
-      (h) => Object.keys(h).every((k) => TOKEN.test(k) && !BLOCKED.has(k.toLowerCase())),
-      "Invalid or not-allowed header name",
-    )
+    .superRefine((h, ctx) => {
+      const bad = Object.keys(h).filter((k) => !TOKEN.test(k) || BLOCKED.has(k.toLowerCase()));
+      if (bad.length)
+        ctx.addIssue({
+          code: "custom",
+          message: `Remove ${bad.join(", ")}: the app sets ${bad.length > 1 ? "these" : "this"} itself`,
+        });
+    })
     .refine(
       (h) => Object.values(h).every((v) => !/[\r\n]/.test(v)),
       "Header values can't contain line breaks",
