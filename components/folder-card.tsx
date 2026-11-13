@@ -19,7 +19,7 @@ export function FolderCard({
 
   return (
     <Card
-      className="group p-3 sm:p-4 bg-zinc-900/50 border-zinc-800 hover:bg-zinc-800/50 hover:border-zinc-700 transition-all cursor-pointer"
+      className="group px-3 py-2.5 rounded-xl border-0 bg-transparent shadow-none hover:bg-zinc-900 transition-colors cursor-pointer"
       onClick={onOpen}
     >
       <div className="flex items-center gap-3">
@@ -33,7 +33,7 @@ export function FolderCard({
           </h3>
           <div className="flex items-center gap-1.5 mt-1 text-[11px] text-zinc-600">
             <CategoryIcon
-              className={`h-3 w-3 shrink-0 ${isSeries ? "text-sky-500/70" : "text-purple-500/70"}`}
+              className="h-3 w-3 shrink-0"
             />
             <span className="truncate">
               {folder.itemCount} item{folder.itemCount !== 1 ? "s" : ""}

@@ -16,6 +16,7 @@ import {
   CircleDashed,
 } from "lucide-react";
 import { VlcIcon } from "@/components/vlc-icon";
+import { showName } from "@/lib/episode-order";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -81,7 +82,7 @@ export function LibraryCard({
 
   return (
     <Card
-      className="group relative overflow-hidden p-3 sm:p-4 bg-zinc-900/50 border-zinc-800 hover:bg-zinc-800/50 hover:border-zinc-700 transition-all cursor-pointer"
+      className="group relative overflow-hidden px-3 py-2.5 rounded-xl border-0 bg-transparent shadow-none hover:bg-zinc-900 transition-colors cursor-pointer"
       onClick={onOpen}
     >
       <div className="flex items-center gap-3">
@@ -98,14 +99,14 @@ export function LibraryCard({
         </Button>
 
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-zinc-100 truncate group-hover:text-white">
-            {item.name}
+          <h3 className="font-medium text-zinc-100 truncate group-hover:text-white" title={item.name}>
+            {showName(item.name)}
           </h3>
           <div className="flex items-center gap-1.5 mt-1 text-[11px] text-zinc-600">
             {isSeries ? (
-              <Tv className="h-3 w-3 shrink-0 text-sky-500/70" />
+              <Tv className="h-3 w-3 shrink-0" />
             ) : (
-              <Film className="h-3 w-3 shrink-0 text-purple-500/70" />
+              <Film className="h-3 w-3 shrink-0" />
             )}
             <span className="truncate">
               {item.cachedBytes > 0 ? (
@@ -165,7 +166,7 @@ export function LibraryCard({
         <Button
           size="icon"
           variant="ghost"
-          className="h-10 w-10 shrink-0 hover:bg-zinc-800"
+          className="h-10 w-10 shrink-0 text-zinc-500 hover:bg-zinc-800 hover:text-[#ff8800]"
           aria-label={`Copy VLC link for ${item.name}`}
           title="Copy VLC link"
           onClick={(e) => {
@@ -267,7 +268,7 @@ export function LibraryCard({
       </div>
 
       {status.state === "watching" && (
-        <div className="absolute left-0 right-0 bottom-0 h-1 bg-zinc-800">
+        <div className="absolute left-3 right-3 bottom-0 h-0.5 rounded-full overflow-hidden bg-zinc-800">
           <div
             className="h-full bg-purple-600"
             style={{ width: `${Math.max(2, status.pct)}%` }}

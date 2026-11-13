@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ContinueWatching } from "@/components/continue-watching";
 import { StorageStrip } from "@/components/storage-strip";
-import { UfoLogo } from "@/components/ufo-logo";
 import { FilePicker } from "@/components/file-picker";
 import { FolderCard } from "@/components/folder-card";
 import { FolderDialog } from "@/components/folder-dialog";
@@ -473,23 +472,8 @@ function LibraryView() {
       )}
 
       <div className="max-w-3xl mx-auto px-5 sm:px-8 py-6 sm:py-8">
-        {/* Header */}
-        <div className="text-center mb-6 sm:mb-8">
-          <h1 className="inline-flex items-center gap-3 text-3xl sm:text-4xl font-bold text-zinc-100">
-            <UfoLogo className="h-10 w-10 sm:h-12 sm:w-12 text-zinc-100" />
-            Spaceflix
-          </h1>
-        </div>
-
         {/* Quick Play */}
         <div className="mb-6 sm:mb-8">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="h-px flex-1 bg-zinc-800" />
-            <span className="text-xs text-zinc-600 uppercase tracking-wider">
-              Quick Play
-            </span>
-            <div className="h-px flex-1 bg-zinc-800" />
-          </div>
           <MagnetInput onSubmit={handleQuickPlay} />
         </div>
 
@@ -698,7 +682,7 @@ function LibraryView() {
 
           {/* Folders */}
           {visibleFolders.length > 0 && (
-            <div className="space-y-2 mb-3">
+            <div className="space-y-1 mb-1">
               {visibleFolders.map((folder) => (
                 <FolderCard
                   key={folder.id}
@@ -716,7 +700,7 @@ function LibraryView() {
 
           {/* Loose library items (anything not filed into a folder) */}
           {visibleLooseItems.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {visibleLooseItems.map((item) => (
                 <LibraryCard
                   key={item.id}

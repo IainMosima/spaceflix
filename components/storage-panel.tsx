@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { StorageEntry } from "@/types";
+import { showName } from "@/lib/episode-order";
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return "0 B";
@@ -322,7 +323,7 @@ export function StoragePanel({
             .sort((a, b) => b.sizeBytes - a.sizeBytes)
             .map((entry) => {
               const badge = KIND_BADGE[entry.kind];
-              const label = entry.itemName ?? entry.name;
+              const label = showName(entry.itemName ?? entry.name);
               return (
                 <div
                   key={entry.name}

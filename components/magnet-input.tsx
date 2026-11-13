@@ -34,7 +34,7 @@ export function MagnetInput({ onSubmit, isLoading, className }: MagnetInputProps
             type="text"
             value={magnet}
             onChange={(e) => setMagnet(e.target.value)}
-            placeholder="Input URL..."
+            placeholder="Paste a magnet link to play"
             className="pl-10 bg-zinc-900/50 border-zinc-800 focus-visible:ring-zinc-700"
             disabled={isLoading}
           />
