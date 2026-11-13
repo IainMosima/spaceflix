@@ -477,6 +477,9 @@ export function VideoPlayer({
       setIsBuffering(false);
     };
     const handleStalled = () => {
+      // "stalled" only means the fetch went quiet (e.g. the browser already has
+      // enough). With frames ready to play, it's not a stall: no spinner, no reload.
+      if (video.readyState >= video.HAVE_FUTURE_DATA) return;
       setIsBuffering(true);
       if (live) return;
 
@@ -501,6 +504,7 @@ export function VideoPlayer({
         stalledTimeoutRef.current = null;
       }
       if (streamError) setStreamError(null);
+      if (video.readyState >= video.HAVE_FUTURE_DATA) setIsBuffering(false);
       if (!video.paused && video.currentTime > 0) {
         setIsInitialStrictBuffering(false);
       }
