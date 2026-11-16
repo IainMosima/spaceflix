@@ -274,7 +274,7 @@ function WatchPlayer({ params }: WatchPageProps) {
               numPeers: number;
               progress?: number;
               downloadSpeed: number;
-              files?: { path: string }[];
+              files?: { path: string; progress?: number }[];
             }
           | undefined;
         if (!torrent) {
@@ -307,8 +307,10 @@ function WatchPlayer({ params }: WatchPageProps) {
         if (file?.path) setFilePath(file.path);
         // Files known too: right after a load the stream 404s until they are,
         // and the browser gives up on the video for good.
-        // A finished download needs no peers to play.
-        if ((torrent.numPeers >= 1 || (torrent.progress ?? 0) >= 1) && (torrent.files?.length ?? 0) > 0) setPeersReady(true);
+        // A finished download needs no peers to play: the whole torrent, or just
+        // this episode of a half-downloaded season pack.
+        const done = (torrent.progress ?? 0) >= 1 || (file?.progress ?? 0) >= 1;
+        if ((torrent.numPeers >= 1 || done) && (torrent.files?.length ?? 0) > 0) setPeersReady(true);
       } catch {}
     };
 
