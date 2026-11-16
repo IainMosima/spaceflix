@@ -842,8 +842,8 @@ export function VideoPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs per file / track list
   }, [audioTracks, remuxBase, src]);
 
-  const cycleAudio = () => {
-    const next = (activeAudio + 1) % audioLabels.length;
+  const selectAudio = (next: number) => {
+    if (next === activeAudio) return;
     audioPickedRef.current = true;
     setActiveAudio(next);
     const v = videoRef.current;
@@ -851,6 +851,7 @@ export function VideoPlayer({
     if (next === fileDefaultAudio) stopRemux(at);
     else startRemux(next, at);
   };
+  const cycleAudio = () => selectAudio((activeAudio + 1) % audioLabels.length);
 
   const setActiveSubtitle = useCallback((index: number | null) => {
     subtitlePickedRef.current = true;
@@ -1722,22 +1723,50 @@ export function VideoPlayer({
             </span>
             )}
 
-            {audioLabels.length > 1 && (
+            {/* Audio: TV remotes cycle with one press; elsewhere a menu to pick from. */}
+            {audioLabels.length > 1 && prefersAlwaysOnControls && (
               <button
                 type="button"
                 {...handleTVClick(cycleAudio)}
-                aria-label={`Audio: ${audioLabels[activeAudio]}. Tap to change`}
-                title={`Audio: ${audioLabels[activeAudio]}`}
+                aria-label={`Audio: ${audioLabels[activeAudio]}. Press to change`}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full cursor-pointer text-white",
+                  "flex items-center gap-1.5 rounded-full cursor-pointer text-white h-14 px-4 text-lg",
                   "hover:bg-white/10 active:bg-white/30",
-                  "focus:bg-white/20 focus:ring-2 focus:ring-white focus:outline-none",
-                  prefersAlwaysOnControls ? "h-14 px-4 text-lg" : "h-9 px-2.5 text-xs"
+                  "focus:bg-white/20 focus:ring-2 focus:ring-white focus:outline-none"
                 )}
               >
-                <AudioLines className={prefersAlwaysOnControls ? "h-7 w-7" : "h-5 w-5"} />
+                <AudioLines className="h-7 w-7" />
                 <span className="max-w-[8rem] truncate">{audioLabels[activeAudio]}</span>
               </button>
+            )}
+            {audioLabels.length > 1 && !prefersAlwaysOnControls && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`Audio: ${audioLabels[activeAudio]}`}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full cursor-pointer text-white h-10 px-2.5 text-xs",
+                      "hover:bg-white/10 active:bg-white/30",
+                      "focus:bg-white/20 focus:ring-2 focus:ring-white focus:outline-none"
+                    )}
+                  >
+                    <AudioLines className="h-5 w-5" />
+                    <span className="max-w-[8rem] truncate">{audioLabels[activeAudio]}</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-zinc-900/95 border-zinc-800 backdrop-blur-sm">
+                  {audioLabels.map((label, i) => (
+                    <DropdownMenuItem
+                      key={i}
+                      onClick={() => selectAudio(i)}
+                      className={cn("cursor-pointer", i === activeAudio && "bg-white/10")}
+                    >
+                      {label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
 
             {/* Subtitle picker - show when subtitles available */}
