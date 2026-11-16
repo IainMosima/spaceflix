@@ -171,11 +171,10 @@ export function VideoPlayer({
       v.currentTime = t;
       return;
     }
-    const local = t - r.offset;
-    const end = v.buffered.length ? v.buffered.end(v.buffered.length - 1) : 0;
-    // Just-started stream: a few seconds of slack before deciding to restart.
-    if (local >= 0 && local <= Math.max(end, 15)) v.currentTime = local;
-    else startRemux(r.audio, t);
+    // Never seek inside a remux: Chrome would ask for a byte offset the live
+    // stream can't serve. Restart it at the new time instead (a second or two).
+    if (Math.abs(t - mediaTime(v)) < 0.5) return; // already there
+    startRemux(r.audio, t);
   }, [startRemux]);
   const [isUsingFallbackStream, setIsUsingFallbackStream] = useState(false);
   const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
