@@ -11,6 +11,7 @@ import {
   Plus,
   HardDrive,
   Pencil,
+  Link2,
   Check,
   X,
   MoreVertical,
@@ -26,6 +27,7 @@ import {
   Pause,
 } from "lucide-react";
 import { VlcIcon } from "@/components/vlc-icon";
+import { MagnetDialog } from "@/components/magnet-dialog";
 import { resolveFolderCategory } from "@/lib/category";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,6 +73,7 @@ interface FolderDialogProps {
   onAddItem: (input: { name: string; magnet: string }) => Promise<unknown>;
   onClearItemCache: (id: string) => Promise<ReclaimResult>;
   onDeleteItem: (id: string) => Promise<unknown>;
+  onChangeMagnet: (id: string, magnet: string) => Promise<unknown>;
   onMoveOut: (id: string) => Promise<unknown>;
   onClearFolderCache: () => Promise<ReclaimResult>;
   onReorder: (orderedIds: string[]) => Promise<unknown>;
@@ -94,6 +97,7 @@ export function FolderDialog({
   onAddItem,
   onClearItemCache,
   onDeleteItem,
+  onChangeMagnet,
   onMoveOut,
   onClearFolderCache,
   onReorder,
@@ -112,6 +116,7 @@ export function FolderDialog({
   const [draft, setDraft] = useState<string[] | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
+  const [magnetItem, setMagnetItem] = useState<LibraryItemWithUsage | null>(null);
   const [newMagnet, setNewMagnet] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState(folder.name);
@@ -579,6 +584,10 @@ export function FolderDialog({
                           <ListVideo className="h-4 w-4" />
                           Browse files
                         </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setMagnetItem(item)}>
+                          <Link2 className="h-4 w-4" />
+                          Magnet link
+                        </DropdownMenuItem>
                         {status.state === "watched" ? (
                           <DropdownMenuItem onSelect={() => onMarkUnwatched(item)}>
                             <CircleDashed className="h-4 w-4" />
@@ -633,6 +642,16 @@ export function FolderDialog({
             <ArrowDownAZ className="h-3.5 w-3.5" />
             Reset to episode order
           </button>
+        )}
+
+        {magnetItem && (
+          <MagnetDialog
+            open
+            onOpenChange={(o) => !o && setMagnetItem(null)}
+            name={`${folder.name} · ${magnetItem.name}`}
+            magnet={magnetItem.magnet}
+            onSave={(m) => onChangeMagnet(magnetItem.id, m)}
+          />
         )}
 
         {/* Add torrent to this folder */}

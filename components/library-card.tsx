@@ -14,8 +14,10 @@ import {
   Tv,
   CircleCheck,
   CircleDashed,
+  Link2,
 } from "lucide-react";
 import { VlcIcon } from "@/components/vlc-icon";
+import { MagnetDialog } from "@/components/magnet-dialog";
 import { showName } from "@/lib/episode-order";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -48,6 +50,7 @@ export function LibraryCard({
   status,
   onMarkWatched,
   onMarkUnwatched,
+  onChangeMagnet,
 }: {
   item: LibraryItemWithUsage;
   folders: LibraryFolderWithUsage[];
@@ -61,8 +64,10 @@ export function LibraryCard({
   status: WatchStatus;
   onMarkWatched: () => void;
   onMarkUnwatched: () => void;
+  onChangeMagnet: (magnet: string) => Promise<unknown>;
 }) {
   const [isClearing, setIsClearing] = useState(false);
+  const [magnetOpen, setMagnetOpen] = useState(false);
 
   const isSeries = item.category === "series";
   // A whole series is many episodes: warn first. A single movie clears at once.
@@ -201,6 +206,10 @@ export function LibraryCard({
               <VlcIcon className="h-4 w-4" />
               Copy VLC link
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setMagnetOpen(true)}>
+              <Link2 className="h-4 w-4" />
+              Magnet link
+            </DropdownMenuItem>
 
             {status.state === "watched" ? (
               <DropdownMenuItem onSelect={() => onMarkUnwatched()}>
@@ -265,6 +274,13 @@ export function LibraryCard({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <MagnetDialog
+          open={magnetOpen}
+          onOpenChange={setMagnetOpen}
+          name={showName(item.name)}
+          magnet={item.magnet}
+          onSave={onChangeMagnet}
+        />
       </div>
 
       {status.state === "watching" && (

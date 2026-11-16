@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getItemById, updateItem, deleteItem } from "@/lib/library-store";
+import { getItemById, updateItem, deleteItem, getAllItems } from "@/lib/library-store";
+import { isValidTorrentInput } from "@/lib/torrent-utils";
 import { extractInfoHashFromMagnet, deleteFromWorker } from "@/lib/torrent-cache-actions";
 import { deleteCacheForLibraryItem } from "@/lib/storage-store";
 
@@ -14,6 +15,8 @@ const UpdateItemSchema = z.object({
   category: z.enum(["movie", "series"]).optional(),
   cacheFolder: z.string().optional(),
   infoHash: z.string().optional(),
+  // Swap in a new link (old one dead or slow); title, folder and episode stay.
+  magnet: z.string().trim().refine(isValidTorrentInput, "Not a magnet link or .torrent URL").optional(),
 });
 
 // GET /api/library/[id] - Get single item
@@ -48,6 +51,19 @@ export async function PUT(
   try {
     const body = await request.json();
     const validated = UpdateItemSchema.parse(body);
+
+    const current = getItemById(id);
+    if (validated.magnet && current && validated.magnet !== current.magnet) {
+      if (getAllItems().some((i) => i.id !== id && i.magnet === validated.magnet)) {
+        return NextResponse.json({ error: "That link is already in your library" }, { status: 409 });
+      }
+      // Everything learned from the old torrent no longer applies.
+      Object.assign(validated, {
+        infoHash: extractInfoHashFromMagnet(validated.magnet) ?? undefined,
+        cacheFolder: undefined,
+        fileIndex: undefined,
+      });
+    }
 
     const item = updateItem(id, validated);
     if (!item) {

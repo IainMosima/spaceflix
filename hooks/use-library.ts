@@ -64,6 +64,7 @@ export function useLibrary() {
       size?: string;
       folderId?: string | null;
       category?: LibraryCategory;
+      magnet?: string;
     }
   ) => {
     const res = await fetch(`/api/library/${id}`, {
@@ -71,7 +72,7 @@ export function useLibrary() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
     });
-    if (!res.ok) throw new Error("Failed to update item");
+    if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || "Failed to update item");
     await mutate();
     return res.json();
   };

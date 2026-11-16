@@ -98,6 +98,7 @@ function LibraryView() {
     deleteFolder,
     clearFolderCache,
     reorderFolder,
+    updateItem,
     resetFolderOrder,
   } = useLibrary();
 
@@ -718,6 +719,7 @@ function LibraryView() {
                   status={statusOf(item)}
                   onMarkWatched={() => markWatched(item)}
                   onMarkUnwatched={() => markUnwatched(item)}
+                  onChangeMagnet={(magnet) => updateItem(item.id, { magnet })}
                 />
               ))}
             </div>
@@ -812,6 +814,7 @@ function LibraryView() {
           onAddItem={(input) => addItem({ ...input, folderId: openFolder.id })}
           onClearItemCache={(id) => clearItemCache(id)}
           onDeleteItem={(id) => deleteItem(id)}
+          onChangeMagnet={(id, magnet) => updateItem(id, { magnet })}
           onMoveOut={(id) => moveItem(id, null)}
           onClearFolderCache={() => clearFolderCache(openFolder.id)}
           onReorder={(orderedIds) => reorderFolder(openFolder.id, orderedIds)}
