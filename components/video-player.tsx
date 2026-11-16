@@ -12,6 +12,7 @@ import {
   PictureInPicture2,
   Loader2,
   Subtitles,
+  AudioLines,
   AlertCircle,
   SkipForward,
   SkipBack,
@@ -741,6 +742,35 @@ export function VideoPlayer({
       setActiveSubtitleIndex(i);
     }
   }, [subtitles, subtitleLanguage, activeSubtitleIndex]);
+
+  // Audio tracks (dubs). Only browsers with video.audioTracks (Safari, iPhone,
+  // many TVs) can switch; elsewhere the button never shows and VLC is the way.
+  // ponytail: native API only; a server remux would cover Chrome, add if needed.
+  type NativeAudioTrack = { enabled: boolean; language: string; label: string };
+  const [audioLabels, setAudioLabels] = useState<string[]>([]);
+  const [activeAudio, setActiveAudio] = useState(0);
+  const enableAudio = useCallback((i: number) => {
+    const tracks = (videoRef.current as unknown as { audioTracks?: ArrayLike<NativeAudioTrack> } | null)?.audioTracks;
+    if (!tracks) return;
+    for (let t = 0; t < tracks.length; t++) tracks[t].enabled = t === i;
+    setActiveAudio(i);
+  }, []);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const onMeta = () => {
+      const tracks = (video as unknown as { audioTracks?: ArrayLike<NativeAudioTrack> }).audioTracks;
+      if (!tracks || tracks.length < 2) return setAudioLabels([]);
+      const list = Array.from(tracks);
+      setAudioLabels(list.map((t, i) => t.label || t.language || `Track ${i + 1}`));
+      const english = list.findIndex((t) => /^(en|eng)\b/i.test(t.language) || /english/i.test(t.label));
+      const current = list.findIndex((t) => t.enabled);
+      enableAudio(english >= 0 ? english : Math.max(0, current));
+    };
+    video.addEventListener("loadedmetadata", onMeta);
+    return () => video.removeEventListener("loadedmetadata", onMeta);
+  }, [playbackSrc, enableAudio]);
+  const cycleAudio = () => enableAudio((activeAudio + 1) % audioLabels.length);
 
   const setActiveSubtitle = useCallback((index: number | null) => {
     subtitlePickedRef.current = true;
@@ -1595,6 +1625,24 @@ export function VideoPlayer({
             )}>
               {formatDuration(currentTime)} / {formatDuration(duration)}
             </span>
+            )}
+
+            {audioLabels.length > 1 && (
+              <button
+                type="button"
+                {...handleTVClick(cycleAudio)}
+                aria-label={`Audio: ${audioLabels[activeAudio]}. Tap to change`}
+                title={`Audio: ${audioLabels[activeAudio]}`}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full cursor-pointer text-white",
+                  "hover:bg-white/10 active:bg-white/30",
+                  "focus:bg-white/20 focus:ring-2 focus:ring-white focus:outline-none",
+                  prefersAlwaysOnControls ? "h-14 px-4 text-lg" : "h-9 px-2.5 text-xs"
+                )}
+              >
+                <AudioLines className={prefersAlwaysOnControls ? "h-7 w-7" : "h-5 w-5"} />
+                <span className="max-w-[8rem] truncate">{audioLabels[activeAudio]}</span>
+              </button>
             )}
 
             {/* Subtitle picker - show when subtitles available */}

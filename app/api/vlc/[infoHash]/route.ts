@@ -89,6 +89,7 @@ export async function GET(
   const lines = [
     "#EXTM3U",
     "#EXTVLCOPT:sub-language=eng,en,English",
+    "#EXTVLCOPT:audio-language=eng,en,English", // dubbed files open in English
     `#EXTVLCOPT:network-caching=${VLC_NETWORK_CACHING_MS}`,
   ];
   if (subUrl) lines.push(`#EXTVLCOPT:input-slave=${subUrl}`);
