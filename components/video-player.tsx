@@ -387,9 +387,11 @@ export function VideoPlayer({
       const video = videoRef.current;
       if (!video) return false;
 
-      // Throttle: don't trigger multiple recoveries within 3 seconds
+      // Throttle: don't trigger multiple recoveries within 3 seconds. Not for
+      // the audio-switch stream: dropping its error left the video stuck paused,
+      // and restarting it is cheap (the attempt cap still stops a loop).
       const now = Date.now();
-      if (now - lastRecoveryAtRef.current < 3000) return false;
+      if (!remuxRef.current && now - lastRecoveryAtRef.current < 3000) return false;
       lastRecoveryAtRef.current = now;
 
       recoveryAttemptsRef.current += 1;
@@ -1357,7 +1359,8 @@ export function VideoPlayer({
         setShowControls(true);
         containerRef.current?.focus();
       }}
-      onKeyDown={(e) => handleKeyDown(e.nativeEvent)}
+      // No onKeyDown here: the window listener already gets every key, and a
+      // second handler ran each one twice (a skip moved 20s, Space did nothing).
     >
       {isUsingFallbackStream && (
         <div className="absolute top-5 right-5 z-20 flex items-center gap-2 rounded-full bg-zinc-900/70 px-4 py-2 text-xs font-medium text-white backdrop-blur">
