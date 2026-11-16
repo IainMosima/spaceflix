@@ -139,18 +139,22 @@ export function VideoPlayer({
   srcRef.current = src;
   const mediaTime = (v: HTMLVideoElement) =>
     (Number.isFinite(v.currentTime) ? v.currentTime : 0) + (remuxRef.current?.offset ?? 0);
-  const startRemux = useCallback(async (audio: number, at: number) => {
+  // Where a restart in flight is headed, so quick repeated skips add up.
+  const remuxTargetRef = useRef<number | null>(null);
+  const startRemux = useCallback(async (audio: number, at: number, forward = false) => {
     const base = remuxBaseRef.current;
     if (!base) return;
     const token = ++remuxTokenRef.current;
     const join = base.includes("?") ? "&" : "?";
     let start = Math.max(0, at);
     try {
-      const r = await fetch(`${base}${join}audio=${audio}&start=${start}&keyframe=1`);
+      // Forward: the next keyframe, else a +10s skip can snap back to where it was.
+      const r = await fetch(`${base}${join}audio=${audio}&start=${start}&keyframe=${forward ? "after" : "1"}`);
       const k = (await r.json())?.start;
       if (Number.isFinite(k)) start = k;
     } catch {}
     if (token !== remuxTokenRef.current) return; // a newer switch or seek won
+    remuxTargetRef.current = null;
     remuxRef.current = { audio, offset: start };
     pendingResumeTimeRef.current = null;
     setSrcRevision(0);
@@ -159,6 +163,7 @@ export function VideoPlayer({
   const stopRemux = useCallback((at: number) => {
     remuxTokenRef.current++;
     remuxRef.current = null;
+    remuxTargetRef.current = null;
     pendingResumeTimeRef.current = at;
     setPlaybackSrc(srcRef.current);
   }, []);
@@ -171,11 +176,25 @@ export function VideoPlayer({
       v.currentTime = t;
       return;
     }
-    // Never seek inside a remux: Chrome would ask for a byte offset the live
-    // stream can't serve. Restart it at the new time instead (a second or two).
-    if (Math.abs(t - mediaTime(v)) < 0.5) return; // already there
-    startRemux(r.audio, t);
+    const from = remuxTargetRef.current ?? mediaTime(v);
+    if (Math.abs(t - from) < 0.5) return; // already there
+    // Already loaded (most short skips): jump within it, instant.
+    const local = t - r.offset;
+    if (remuxTargetRef.current === null) {
+      for (let i = 0; i < v.buffered.length; i++) {
+        if (local >= v.buffered.start(i) && local < v.buffered.end(i) - 0.5) {
+          v.currentTime = local;
+          return;
+        }
+      }
+    }
+    // Not loaded: restart the stream there (a second or two). Never seek past
+    // what's loaded, Chrome would ask for a byte offset the live stream can't serve.
+    remuxTargetRef.current = t;
+    startRemux(r.audio, t, t > from);
   }, [startRemux]);
+  /** The position a skip should count from: a restart in flight, else now. */
+  const skipBase = (v: HTMLVideoElement) => remuxTargetRef.current ?? mediaTime(v);
   const [isUsingFallbackStream, setIsUsingFallbackStream] = useState(false);
   const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
   const [srcRevision, setSrcRevision] = useState(0);
@@ -991,7 +1010,7 @@ export function VideoPlayer({
     try {
       if (remuxRef.current) {
         const total = fallbackDuration || duration || Infinity;
-        seekMedia(Math.max(0, Math.min(mediaTime(video) + seconds, total - 1)));
+        seekMedia(Math.max(0, Math.min(skipBase(video) + seconds, total - 1)));
         return;
       }
       const effectiveDuration = Number.isFinite(video.duration) ? video.duration : (duration || Infinity);
