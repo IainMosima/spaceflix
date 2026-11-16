@@ -5,6 +5,7 @@ import { getDataDir } from "@/lib/data-dir";
 import {
   episodeCode,
   parseEpisode,
+  showName,
   sortFolderItems,
   type EpisodeNumber,
 } from "@/lib/episode-order";
@@ -74,6 +75,28 @@ function applyEpisodeName(data: LibraryData, item: LibraryItem): void {
   if (code) item.name = code;
 }
 
+/** "Get.Jiro" and "get jiro" are the same show. */
+const showKey = (name: string) => showName(name).toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/**
+ * A single episode added with no folder goes into its show's series folder,
+ * made on first sight, so pasting the link is all it takes.
+ */
+function autoFolder(data: LibraryData, item: LibraryItem): void {
+  if (item.folderId !== undefined) return;
+  const dn = new URLSearchParams(item.magnet.split("?")[1] ?? "").get("dn") ?? "";
+  const source = [item.name, dn].find((n) => episodeCode(n));
+  if (!source) return;
+  const key = showKey(source);
+  if (!key) return;
+  let folder = data.folders.find((f) => showKey(f.name) === key);
+  if (!folder) {
+    folder = { id: newId("fld"), name: showName(source), createdAt: Date.now(), category: "series" };
+    data.folders.push(folder);
+  }
+  item.folderId = folder.id;
+}
+
 // --- Items ---
 
 export function getAllItems(): LibraryItem[] {
@@ -107,6 +130,7 @@ export function addItem(item: Omit<LibraryItem, "id" | "addedAt">): LibraryItem 
     addedAt: Date.now(),
   };
 
+  autoFolder(data, newItem);
   applyEpisodeName(data, newItem);
   // Add to beginning (newest first)
   data.items.unshift(newItem);

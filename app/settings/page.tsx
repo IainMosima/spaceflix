@@ -20,6 +20,7 @@ export default function SettingsPage() {
   const [parallelDownloads, setParallelDownloads] = useState(3);
   const [bgLimitKB, setBgLimitKB] = useState(300); // KB/s, -1 = none
   const [cleanupDelay, setCleanupDelay] = useState(30);
+  const [subtitleLanguage, setSubtitleLanguage] = useState("English");
   const [isSaving, setIsSaving] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
@@ -33,6 +34,7 @@ export default function SettingsPage() {
       const bg = settings.backgroundDownloadLimit ?? 307200;
       setBgLimitKB(bg < 0 ? -1 : Math.round(bg / 1024));
       setCleanupDelay(settings.cleanupDelaySeconds);
+      setSubtitleLanguage(settings.subtitleLanguage ?? "English");
     }
   }, [settings]);
 
@@ -46,6 +48,7 @@ export default function SettingsPage() {
         parallelDownloads,
         backgroundDownloadLimit: bgLimitKB < 0 ? -1 : Math.round(bgLimitKB * 1024),
         cleanupDelaySeconds: cleanupDelay,
+        subtitleLanguage: subtitleLanguage.trim(),
       });
       toast.success("Settings saved");
     } catch (err) {
@@ -97,6 +100,21 @@ export default function SettingsPage() {
           <Card className="p-6 bg-zinc-900/50 border-zinc-800">
             <h2 className="font-semibold mb-4">Connection</h2>
             <div className="space-y-4">
+              <div>
+                <label className="text-sm text-zinc-400 mb-2 block">
+                  Subtitles on by default
+                </label>
+                <Input
+                  value={subtitleLanguage}
+                  onChange={(e) => setSubtitleLanguage(e.target.value)}
+                  placeholder="Off"
+                  className="bg-zinc-800 border-zinc-700 w-40"
+                />
+                <p className="text-xs text-zinc-600 mt-1">
+                  A language, like English. Turned on when the video has it. Leave empty for off.
+                </p>
+              </div>
+
               <div>
                 <label className="text-sm text-zinc-400 mb-2 block">
                   Max Connections

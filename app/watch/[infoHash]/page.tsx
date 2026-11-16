@@ -62,6 +62,13 @@ function WatchPlayer({ params }: WatchPageProps) {
   const sessionIdRef = useRef<string | null>(null);
   const hasStartedRef = useRef(false);
   const [subtitles, setSubtitles] = useState<{ label: string; src: string }[]>([]);
+  const [subtitleLanguage, setSubtitleLanguage] = useState("");
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => setSubtitleLanguage(s?.subtitleLanguage ?? "English"))
+      .catch(() => {});
+  }, []);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [probedDuration, setProbedDuration] = useState<number | null>(null);
   const [probeComplete, setProbeComplete] = useState(false);
@@ -647,6 +654,7 @@ function WatchPlayer({ params }: WatchPageProps) {
         onStop={handleStop}
         autoPlay
         subtitles={subtitles}
+        subtitleLanguage={subtitleLanguage}
         fallbackDuration={probedDuration ?? undefined}
         resumeFrom={resumeFrom}
         onProgress={handleProgress}

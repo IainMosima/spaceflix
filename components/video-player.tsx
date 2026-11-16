@@ -36,6 +36,8 @@ interface VideoPlayerProps {
   onStop?: () => void;
   autoPlay?: boolean;
   subtitles?: { label: string; src: string }[];
+  /** Turn on the first track matching this language (e.g. "English"); "" = off. */
+  subtitleLanguage?: string;
   strictPrebuffering?: boolean;
   strictBufferSizeMB?: number;
   /** Fallback duration in seconds when video.duration is Infinity/NaN (MKV streams) */
@@ -76,6 +78,7 @@ export function VideoPlayer({
   onStop,
   autoPlay = true,
   subtitles = [],
+  subtitleLanguage = "",
   strictPrebuffering = false,
   strictBufferSizeMB,
   fallbackDuration,
@@ -722,13 +725,32 @@ export function VideoPlayer({
     return () => video.removeEventListener("timeupdate", updateCue);
   }, [activeSubtitleIndex]);
 
+  // Default language: pick it once, as soon as a matching track shows up.
+  // Any manual choice (including off) wins from then on.
+  const subtitlePickedRef = useRef(false);
+  useEffect(() => {
+    if (subtitlePickedRef.current || activeSubtitleIndex !== null) return;
+    const lang = subtitleLanguage.trim().toLowerCase();
+    if (!lang) return;
+    const codes = [lang, lang.slice(0, 3), lang.slice(0, 2)];
+    const i = subtitles.findIndex((s) =>
+      s.label.toLowerCase().split(/[^a-z]+/).some((w) => codes.includes(w))
+    );
+    if (i >= 0) {
+      subtitlePickedRef.current = true;
+      setActiveSubtitleIndex(i);
+    }
+  }, [subtitles, subtitleLanguage, activeSubtitleIndex]);
+
   const setActiveSubtitle = useCallback((index: number | null) => {
+    subtitlePickedRef.current = true;
     activeCuesRef.current = [];
     setActiveSubtitleIndex(index);
     if (index === null) setActiveCueText(null);
   }, []);
 
   const cycleSubtitles = useCallback(() => {
+    subtitlePickedRef.current = true;
     activeCuesRef.current = [];
     setActiveSubtitleIndex((prev) => {
       const next = prev === null ? 0 : prev + 1 >= subtitles.length ? null : prev + 1;

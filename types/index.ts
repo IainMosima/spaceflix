@@ -28,6 +28,8 @@ export interface EngineSettings {
   parallelDownloads?: number;
   /** Download cap (bytes/s) while nothing is being watched; -1 = none. */
   backgroundDownloadLimit?: number;
+  /** Subtitle language turned on by default when a matching track exists; "" = off. */
+  subtitleLanguage?: string;
   /** Seconds of buffer the current episode needs before a prefetch starts. */
   prefetchMinBufferSeconds?: number;
   /** After Next, delete the previous episode once the next is watched N min or P% downloaded. */

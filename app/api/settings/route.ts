@@ -14,6 +14,7 @@ const UpdateSettingsSchema = z.object({
   prefetchNextEpisode: z.boolean().optional(),
   parallelDownloads: z.number().int().min(1).max(10).optional(),
   backgroundDownloadLimit: z.number().int().min(-1).optional(),
+  subtitleLanguage: z.string().max(40).optional(),
   prefetchMinBufferSeconds: z.number().min(0).max(3600).optional(),
   purgePreviousMode: z.enum(["watched", "downloaded"]).optional(),
   purgePreviousMinutes: z.number().int().min(1).max(60).optional(),
