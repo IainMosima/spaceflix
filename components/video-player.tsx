@@ -106,6 +106,9 @@ export function VideoPlayer({
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  // While the progress bar is being dragged: where the finger/mouse is.
+  const [dragTime, setDragTime] = useState<number | null>(null);
+  const shownTime = dragTime ?? currentTime;
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
@@ -1220,11 +1223,24 @@ export function VideoPlayer({
     }
   };
 
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!duration) return;
+  // Drag (or tap) the progress bar: follow the pointer, seek once on release,
+  // so the audio-switch stream restarts once rather than on every pixel.
+  const barTime = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    seekTo(ratio * duration);
+    return Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)) * duration;
+  };
+  const handleBarDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!duration) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragTime(barTime(e));
+  };
+  const handleBarMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragTime !== null) setDragTime(barTime(e));
+  };
+  const handleBarUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragTime === null) return;
+    setDragTime(null);
+    seekTo(barTime(e));
   };
 
   const handleSkipBackward = (e?: React.SyntheticEvent) => {
@@ -1634,16 +1650,11 @@ export function VideoPlayer({
               "relative group/progress mb-4 cursor-pointer",
               prefersAlwaysOnControls && "py-4 -my-4"
             )}
-            onClick={handleProgressClick}
-            onMouseUp={handleProgressClick}
-            onTouchEnd={(e) => {
-              const touch = e.changedTouches[0];
-              if (touch && duration) {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const ratio = Math.min(1, Math.max(0, (touch.clientX - rect.left) / rect.width));
-                seekTo(ratio * duration);
-              }
-            }}
+            style={{ touchAction: "none" }}
+            onPointerDown={handleBarDown}
+            onPointerMove={handleBarMove}
+            onPointerUp={handleBarUp}
+            onPointerCancel={() => setDragTime(null)}
           >
             {/* Background track */}
             <div className={cn(
@@ -1662,7 +1673,7 @@ export function VideoPlayer({
                 "absolute bg-purple-500 rounded-full transition-all",
                 prefersAlwaysOnControls ? "h-2" : "h-1 group-hover/progress:h-1.5"
               )}
-              style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
+              style={{ width: `${(shownTime / (duration || 1)) * 100}%` }}
             />
             {/* Thumb indicator */}
             <div
@@ -1670,7 +1681,7 @@ export function VideoPlayer({
                 "absolute top-1/2 -translate-y-1/2 bg-white rounded-full shadow-lg transition-all",
                 prefersAlwaysOnControls ? "h-5 w-5 -ml-2.5" : "h-4 w-4 -ml-2 opacity-0 group-hover/progress:opacity-100"
               )}
-              style={{ left: `${(currentTime / (duration || 1)) * 100}%` }}
+              style={{ left: `${(shownTime / (duration || 1)) * 100}%` }}
             />
             {/* Invisible hit area */}
             <div className={cn(
@@ -1740,7 +1751,7 @@ export function VideoPlayer({
               "text-white/90 tabular-nums",
               prefersAlwaysOnControls ? "text-xl" : "text-sm basis-full order-first pl-1 sm:basis-auto sm:order-none sm:pl-0"
             )}>
-              {formatDuration(currentTime)} / {formatDuration(duration)}
+              {formatDuration(shownTime)} / {formatDuration(duration)}
             </span>
             )}
 
