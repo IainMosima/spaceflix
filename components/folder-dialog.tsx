@@ -26,6 +26,7 @@ import {
   Pause,
 } from "lucide-react";
 import { VlcIcon } from "@/components/vlc-icon";
+import { resolveFolderCategory } from "@/lib/category";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -45,7 +46,7 @@ import { isValidTorrentInput, extractInfoHash } from "@/lib/torrent-utils";
 import { useDownloadProgress, type DownloadTarget } from "@/hooks/use-download-progress";
 import { DownloadAhead, DownloadBar, DownloadStateLabel } from "@/components/file-picker";
 import { cn } from "@/lib/utils";
-import { episodeCode, sortFolderItems } from "@/lib/episode-order";
+import { episodeCode, parseEpisode, sortFolderItems } from "@/lib/episode-order";
 import { ScrollPager } from "@/components/scroll-pager";
 import type { WatchStatus } from "@/hooks/use-watch-progress";
 import { SeriesBar, type SeriesEpisode } from "@/components/series-bar";
@@ -206,14 +207,31 @@ export function FolderDialog({
     }
   };
 
+  // Series: the name box starts on the episode after the highest one here
+  // (or after the one just added), so adding is paste-and-go.
+  const nextEpisode = (names: string[]) => {
+    if (resolveFolderCategory(folder, items) !== "series") return "";
+    let s = 1, e = 0;
+    for (const n of names) {
+      const p = parseEpisode(n);
+      if (p && (p.season > s || (p.season === s && p.episode > e))) { s = p.season; e = p.episode; }
+    }
+    return episodeCode(`S${s}E${e + 1}`) ?? "";
+  };
+  const openAdd = () => {
+    setNewName(nextEpisode(items.map((i) => i.name)));
+    setShowAdd(true);
+  };
+
   const handleAdd = () =>
     run("__add__", async () => {
       try {
         await onAddItem({ name: newName.trim(), magnet: newMagnet.trim() });
         toast.success(`Added "${newName.trim()}" to ${folder.name}`);
-        setNewName("");
+        const next = nextEpisode([...items.map((i) => i.name), newName.trim()]);
+        setNewName(next);
         setNewMagnet("");
-        setShowAdd(false);
+        if (!next) setShowAdd(false); // series: stay open for the next link
       } catch {
         toast.error("Failed to add");
       }
@@ -662,7 +680,7 @@ export function FolderDialog({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setShowAdd(true)}
+                onClick={openAdd}
                 className="border-zinc-700 h-10 min-w-0"
               >
                 <Plus className="h-4 w-4 mr-1.5 shrink-0" />
