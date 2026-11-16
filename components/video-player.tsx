@@ -123,7 +123,9 @@ export function VideoPlayer({
   const activeCuesRef = useRef<{ start: number; end: number; text: string }[]>([]);
   const [skipIndicator, setSkipIndicator] = useState<{ side: "left" | "right"; show: boolean; seconds: number }>({ side: "left", show: false, seconds: 10 });
   const lastTapRef = useRef<{ time: number; side: "left" | "right" | null }>({ time: 0, side: null });
-  const [lastActionTime, setLastActionTime] = useState(0);
+  // A ref, not state: mouseup and click arrive before a re-render, so state
+  // let both through and one tap skipped twice.
+  const lastActionTimeRef = useRef(0);
   const [prefersAlwaysOnControls, setPrefersAlwaysOnControls] = useState(false);
   const isTvPlaybackRef = useRef(false);
   const [streamError, setStreamError] = useState<string | null>(null);
@@ -1264,10 +1266,10 @@ export function VideoPlayer({
 
   const runGuardedAction = useCallback((action: () => void) => {
     const now = Date.now();
-    if (now - lastActionTime < 300) return;
-    setLastActionTime(now);
+    if (now - lastActionTimeRef.current < 300) return;
+    lastActionTimeRef.current = now;
     action();
-  }, [lastActionTime]);
+  }, []);
 
   // TV pointer helper - handles all possible click events from TV remotes
   // Uses a time guard to prevent double-firing (e.g. D-pad OK fires both keydown + synthesized click)
