@@ -39,6 +39,10 @@ interface VideoPlayerProps {
   subtitles?: { label: string; src: string }[];
   /** Turn on the first track matching this language (e.g. "English"); "" = off. */
   subtitleLanguage?: string;
+  /** Every audio track in the file (from the probe), in /remux order. */
+  audioTracks?: { language: string; title: string; isDefault: boolean }[];
+  /** Worker /remux URL for this file: plays another audio track where the browser can't switch. */
+  remuxBase?: string;
   strictPrebuffering?: boolean;
   strictBufferSizeMB?: number;
   /** Fallback duration in seconds when video.duration is Infinity/NaN (MKV streams) */
@@ -80,6 +84,8 @@ export function VideoPlayer({
   autoPlay = true,
   subtitles = [],
   subtitleLanguage = "",
+  audioTracks = [],
+  remuxBase,
   strictPrebuffering = false,
   strictBufferSizeMB,
   fallbackDuration,
@@ -120,6 +126,57 @@ export function VideoPlayer({
   const [streamError, setStreamError] = useState<string | null>(null);
   const [mutedByAutoplay, setMutedByAutoplay] = useState(false);
   const [playbackSrc, setPlaybackSrc] = useState(src);
+
+  // Server-side audio switch (Chrome/Edge can't pick a track): the worker
+  // streams from `offset` with the chosen track, and that stream's clock starts
+  // at 0, so the real position is currentTime + offset. Seeking past what's
+  // loaded restarts it at the new spot.
+  const remuxRef = useRef<{ audio: number; offset: number } | null>(null);
+  const remuxTokenRef = useRef(0);
+  const remuxBaseRef = useRef(remuxBase);
+  remuxBaseRef.current = remuxBase;
+  const srcRef = useRef(src);
+  srcRef.current = src;
+  const mediaTime = (v: HTMLVideoElement) =>
+    (Number.isFinite(v.currentTime) ? v.currentTime : 0) + (remuxRef.current?.offset ?? 0);
+  const startRemux = useCallback(async (audio: number, at: number) => {
+    const base = remuxBaseRef.current;
+    if (!base) return;
+    const token = ++remuxTokenRef.current;
+    const join = base.includes("?") ? "&" : "?";
+    let start = Math.max(0, at);
+    try {
+      const r = await fetch(`${base}${join}audio=${audio}&start=${start}&keyframe=1`);
+      const k = (await r.json())?.start;
+      if (Number.isFinite(k)) start = k;
+    } catch {}
+    if (token !== remuxTokenRef.current) return; // a newer switch or seek won
+    remuxRef.current = { audio, offset: start };
+    pendingResumeTimeRef.current = null;
+    setSrcRevision(0);
+    setPlaybackSrc(`${base}${join}audio=${audio}&start=${start}`);
+  }, []);
+  const stopRemux = useCallback((at: number) => {
+    remuxTokenRef.current++;
+    remuxRef.current = null;
+    pendingResumeTimeRef.current = at;
+    setPlaybackSrc(srcRef.current);
+  }, []);
+  /** Seek to a real position, in either mode. */
+  const seekMedia = useCallback((t: number) => {
+    const v = videoRef.current;
+    if (!v) return;
+    const r = remuxRef.current;
+    if (!r) {
+      v.currentTime = t;
+      return;
+    }
+    const local = t - r.offset;
+    const end = v.buffered.length ? v.buffered.end(v.buffered.length - 1) : 0;
+    // Just-started stream: a few seconds of slack before deciding to restart.
+    if (local >= 0 && local <= Math.max(end, 15)) v.currentTime = local;
+    else startRemux(r.audio, t);
+  }, [startRemux]);
   const [isUsingFallbackStream, setIsUsingFallbackStream] = useState(false);
   const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
   const [srcRevision, setSrcRevision] = useState(0);
@@ -143,6 +200,8 @@ export function VideoPlayer({
   }, [onProgress, onBufferHealth]);
 
   useEffect(() => {
+    remuxTokenRef.current++;
+    remuxRef.current = null;
     setPlaybackSrc(src);
     setIsUsingFallbackStream(false);
     setSrcRevision(0);
@@ -319,6 +378,12 @@ export function VideoPlayer({
       setIsBuffering(true);
       setStreamError(null);
 
+      if (remuxRef.current) {
+        setFallbackNotice(message);
+        startRemux(remuxRef.current.audio, mediaTime(video));
+        return true;
+      }
+
       const resumeTime = video.currentTime || 0;
       pendingResumeTimeRef.current = resumeTime;
 
@@ -330,7 +395,7 @@ export function VideoPlayer({
       setSrcRevision((rev) => rev + 1);
       return true;
     },
-    [trySwitchToFallback]
+    [trySwitchToFallback, startRemux]
   );
 
   // Show controls on mouse move
@@ -396,7 +461,7 @@ export function VideoPlayer({
 
     const reportProgress = (force = false) => {
       const report = onProgressRef.current;
-      const t = video.currentTime;
+      const t = mediaTime(video);
       if (!report || !Number.isFinite(t) || t <= 0) return;
       const now = Date.now();
       if (!force && now - lastProgressReportRef.current < PROGRESS_REPORT_INTERVAL_MS) {
@@ -410,9 +475,10 @@ export function VideoPlayer({
       const reportBuffer = onBufferHealthRef.current;
       if (reportBuffer) {
         let ahead = 0;
+        const local = video.currentTime;
         for (let i = 0; i < video.buffered.length; i++) {
-          if (video.buffered.start(i) <= t && t <= video.buffered.end(i)) {
-            ahead = video.buffered.end(i) - t;
+          if (video.buffered.start(i) <= local && local <= video.buffered.end(i)) {
+            ahead = video.buffered.end(i) - local;
             break;
           }
         }
@@ -428,7 +494,7 @@ export function VideoPlayer({
       reportProgress(true);
     };
     const handleTimeUpdate = () => {
-      const t = video.currentTime;
+      const t = mediaTime(video);
       setCurrentTime(Number.isFinite(t) ? t : 0);
       reportProgress();
     };
@@ -439,6 +505,7 @@ export function VideoPlayer({
         setDuration(fallbackDuration);
         return;
       }
+      if (remuxRef.current) return; // only the restarted window, not the film
       const d = video.duration;
       if (Number.isFinite(d) && d > 0) setDuration(d);
     };
@@ -516,7 +583,7 @@ export function VideoPlayer({
     const handleUnexpectedEnd = () => {
       if (live) return;
       const total = effectiveDuration();
-      const now = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+      const now = mediaTime(video);
       // Within 2s of real end — let it finish naturally, and bank the position
       // so it registers as watched.
       if (total && total - now <= 2) {
@@ -569,6 +636,11 @@ export function VideoPlayer({
       if (pendingResumeTimeRef.current === null) return;
       const resumeTime = pendingResumeTimeRef.current;
       pendingResumeTimeRef.current = null;
+      if (remuxRef.current) {
+        seekMedia(resumeTime);
+        if (video.paused && autoPlay) video.play().catch(() => {});
+        return;
+      }
       const maxDuration = video.duration;
       const target =
         maxDuration && Number.isFinite(maxDuration)
@@ -595,7 +667,7 @@ export function VideoPlayer({
       video.removeEventListener("canplay", handleResumeSeek);
       video.removeEventListener("loadeddata", handleResumeSeek);
     };
-  }, [autoPlay]);
+  }, [autoPlay, seekMedia]);
 
   // Fullscreen change handler (with vendor prefixes for VIDAA/WebKit)
   useEffect(() => {
@@ -717,7 +789,7 @@ export function VideoPlayer({
         setActiveCueText(null);
         return;
       }
-      const t = video.currentTime - subtitleDelayRef.current;
+      const t = mediaTime(video) - subtitleDelayRef.current;
       const active = activeCuesRef.current.find((c) => t >= c.start && t <= c.end);
       setActiveCueText(active ? active.text : null);
     };
@@ -743,34 +815,71 @@ export function VideoPlayer({
     }
   }, [subtitles, subtitleLanguage, activeSubtitleIndex]);
 
-  // Audio tracks (dubs). Only browsers with video.audioTracks (Safari, iPhone,
-  // many TVs) can switch; elsewhere the button never shows and VLC is the way.
-  // ponytail: native API only; a server remux would cover Chrome, add if needed.
+  // Audio tracks (dubs), English first. Safari, iPhone and many TVs switch
+  // natively (video.audioTracks); Chrome and Edge can't, so the worker remuxes
+  // the stream with the chosen track (see startRemux).
   type NativeAudioTrack = { enabled: boolean; language: string; label: string };
+  const isEnglish = (lang: string, label: string) => /^(en|eng)\b/i.test(lang) || /english/i.test(label);
   const [audioLabels, setAudioLabels] = useState<string[]>([]);
   const [activeAudio, setActiveAudio] = useState(0);
-  const enableAudio = useCallback((i: number) => {
-    const tracks = (videoRef.current as unknown as { audioTracks?: ArrayLike<NativeAudioTrack> } | null)?.audioTracks;
-    if (!tracks) return;
-    for (let t = 0; t < tracks.length; t++) tracks[t].enabled = t === i;
-    setActiveAudio(i);
-  }, []);
+  const audioPickedRef = useRef(false);
+  const nativeTracks = () =>
+    (videoRef.current as unknown as { audioTracks?: ArrayLike<NativeAudioTrack> } | null)?.audioTracks;
+  const canSwitchNatively = () =>
+    typeof HTMLMediaElement !== "undefined" && "audioTracks" in HTMLMediaElement.prototype;
+  const fileDefaultAudio = Math.max(0, audioTracks.findIndex((t) => t.isDefault));
+
+  // Native: read the element's own tracks once its metadata is in.
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !canSwitchNatively()) return;
     const onMeta = () => {
       const tracks = (video as unknown as { audioTracks?: ArrayLike<NativeAudioTrack> }).audioTracks;
       if (!tracks || tracks.length < 2) return setAudioLabels([]);
       const list = Array.from(tracks);
       setAudioLabels(list.map((t, i) => t.label || t.language || `Track ${i + 1}`));
-      const english = list.findIndex((t) => /^(en|eng)\b/i.test(t.language) || /english/i.test(t.label));
-      const current = list.findIndex((t) => t.enabled);
-      enableAudio(english >= 0 ? english : Math.max(0, current));
+      if (audioPickedRef.current) return;
+      const english = list.findIndex((t) => isEnglish(t.language, t.label));
+      const i = english >= 0 ? english : Math.max(0, list.findIndex((t) => t.enabled));
+      for (let t = 0; t < list.length; t++) list[t].enabled = t === i;
+      setActiveAudio(i);
     };
     video.addEventListener("loadedmetadata", onMeta);
     return () => video.removeEventListener("loadedmetadata", onMeta);
-  }, [playbackSrc, enableAudio]);
-  const cycleAudio = () => enableAudio((activeAudio + 1) % audioLabels.length);
+  }, [playbackSrc]);
+
+  // Server: the probe's track list; start on English when the file opens on another language.
+  useEffect(() => {
+    audioPickedRef.current = false;
+  }, [src]);
+  useEffect(() => {
+    if (canSwitchNatively() || !remuxBase || audioTracks.length < 2) return;
+    setAudioLabels(audioTracks.map((t, i) => t.title || t.language || `Track ${i + 1}`));
+    if (audioPickedRef.current) return;
+    audioPickedRef.current = true;
+    const english = audioTracks.findIndex((t) => isEnglish(t.language, t.title));
+    if (english < 0 || english === fileDefaultAudio) return setActiveAudio(fileDefaultAudio);
+    setActiveAudio(english);
+    const v = videoRef.current;
+    // Not yet playing: start where the resume would have (pending is set above).
+    startRemux(english, pendingResumeTimeRef.current ?? (v ? mediaTime(v) : resumeFrom ?? 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs per file / track list
+  }, [audioTracks, remuxBase, src]);
+
+  const cycleAudio = () => {
+    const next = (activeAudio + 1) % audioLabels.length;
+    audioPickedRef.current = true;
+    setActiveAudio(next);
+    const tracks = nativeTracks();
+    if (canSwitchNatively() && tracks) {
+      for (let t = 0; t < tracks.length; t++) tracks[t].enabled = t === next;
+      return;
+    }
+    const v = videoRef.current;
+    const at = v ? mediaTime(v) : 0;
+    if (next === fileDefaultAudio) stopRemux(at);
+    else startRemux(next, at);
+  };
 
   const setActiveSubtitle = useCallback((index: number | null) => {
     subtitlePickedRef.current = true;
@@ -909,6 +1018,11 @@ export function VideoPlayer({
     setTimeout(() => setSkipIndicator((prev) => ({ ...prev, show: false })), 800);
 
     try {
+      if (remuxRef.current) {
+        const total = fallbackDuration || duration || Infinity;
+        seekMedia(Math.max(0, Math.min(mediaTime(video) + seconds, total - 1)));
+        return;
+      }
       const effectiveDuration = Number.isFinite(video.duration) ? video.duration : (duration || Infinity);
       const newTime = Math.max(0, Math.min(video.currentTime + seconds, effectiveDuration - 1));
       video.currentTime = newTime;
@@ -1004,7 +1118,7 @@ export function VideoPlayer({
       case 413: { // Stop: leave the player. Never rewind — that would lose the spot.
         e.preventDefault();
         video.pause();
-        const t = video.currentTime;
+        const t = mediaTime(video);
         if (Number.isFinite(t) && t > 0) {
           const d = duration || (Number.isFinite(video.duration) ? video.duration : 0);
           onProgressRef.current?.(t, d);
@@ -1097,6 +1211,10 @@ export function VideoPlayer({
     const video = videoRef.current;
     if (!video) return;
 
+    if (remuxRef.current) {
+      seekMedia(Math.max(0, Math.min(time, (fallbackDuration || duration || Infinity) - 1)));
+      return;
+    }
     const effectiveDuration = Number.isFinite(video.duration) ? video.duration : (duration || 0);
     const newTime = Math.max(0, Math.min(time, effectiveDuration - 1));
 
@@ -1213,7 +1331,7 @@ export function VideoPlayer({
   const handleSeek = (value: number[]) => {
     const video = videoRef.current;
     if (!video) return;
-    video.currentTime = value[0];
+    seekMedia(value[0]);
   };
 
   const handleVolumeChange = (value: number[]) => {
@@ -1273,7 +1391,7 @@ export function VideoPlayer({
           <button
             onClick={() => {
               const video = videoRef.current;
-              if (video) video.currentTime = 0;
+              if (video) seekMedia(0);
               setResumedFromSec(null);
             }}
             className="shrink-0 rounded-full bg-white/10 hover:bg-white/20 px-3 py-1.5 text-xs font-medium transition-colors"
@@ -1373,7 +1491,13 @@ export function VideoPlayer({
               <Button
                 variant="outline"
                 onClick={() => {
-                  const resumeTime = videoRef.current?.currentTime || 0;
+                  const v = videoRef.current;
+                  if (v && remuxRef.current) {
+                    setStreamError(null);
+                    startRemux(remuxRef.current.audio, mediaTime(v));
+                    return;
+                  }
+                  const resumeTime = v?.currentTime || 0;
                   pendingResumeTimeRef.current = resumeTime;
                   recoveryAttemptsRef.current = 0;
                   setStreamError(null);

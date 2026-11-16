@@ -60,3 +60,6 @@ dist/
 
 # live channel links + their headers/tokens (user-specific)
 /data/channels.json
+
+# Your library (magnet links), settings and sources: never committed
+/data/

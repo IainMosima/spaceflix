@@ -72,6 +72,7 @@ function WatchPlayer({ params }: WatchPageProps) {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [probedDuration, setProbedDuration] = useState<number | null>(null);
   const [probeComplete, setProbeComplete] = useState(false);
+  const [audioTracks, setAudioTracks] = useState<{ language: string; title: string; isDefault: boolean }[]>([]);
   const [peersReady, setPeersReady] = useState(false);
   const [peers, setPeers] = useState(0);
   const [dlSpeed, setDlSpeed] = useState(0);
@@ -271,6 +272,7 @@ function WatchPlayer({ params }: WatchPageProps) {
         ) as
           | {
               numPeers: number;
+              progress?: number;
               downloadSpeed: number;
               files?: { path: string }[];
             }
@@ -305,7 +307,8 @@ function WatchPlayer({ params }: WatchPageProps) {
         if (file?.path) setFilePath(file.path);
         // Files known too: right after a load the stream 404s until they are,
         // and the browser gives up on the video for good.
-        if (torrent.numPeers >= 1 && (torrent.files?.length ?? 0) > 0) setPeersReady(true);
+        // A finished download needs no peers to play.
+        if ((torrent.numPeers >= 1 || (torrent.progress ?? 0) >= 1) && (torrent.files?.length ?? 0) > 0) setPeersReady(true);
       } catch {}
     };
 
@@ -380,6 +383,7 @@ function WatchPlayer({ params }: WatchPageProps) {
         const r = await fetch(probeUrl);
         const data = r.ok ? await r.json() : null;
         if (cancelled) return;
+        if (Array.isArray(data?.audioTracks)) setAudioTracks(data.audioTracks);
 
         if (data?.durationSec && data.durationSec > 0) {
           setProbedDuration(data.durationSec);
@@ -655,6 +659,8 @@ function WatchPlayer({ params }: WatchPageProps) {
         autoPlay
         subtitles={subtitles}
         subtitleLanguage={subtitleLanguage}
+        audioTracks={audioTracks}
+        remuxBase={streamUrl.replace("/stream/", "/remux/")}
         fallbackDuration={probedDuration ?? undefined}
         resumeFrom={resumeFrom}
         onProgress={handleProgress}
