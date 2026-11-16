@@ -815,45 +815,21 @@ export function VideoPlayer({
     }
   }, [subtitles, subtitleLanguage, activeSubtitleIndex]);
 
-  // Audio tracks (dubs), English first. Safari, iPhone and many TVs switch
-  // natively (video.audioTracks); Chrome and Edge can't, so the worker remuxes
-  // the stream with the chosen track (see startRemux).
-  type NativeAudioTrack = { enabled: boolean; language: string; label: string };
+  // Audio tracks (dubs), English first. Browsers can't reliably list or switch
+  // tracks in these files (Chrome/Edge never; TVs often see just one), so the
+  // worker remuxes the stream with the chosen track (see startRemux).
   const isEnglish = (lang: string, label: string) => /^(en|eng)\b/i.test(lang) || /english/i.test(label);
   const [audioLabels, setAudioLabels] = useState<string[]>([]);
   const [activeAudio, setActiveAudio] = useState(0);
   const audioPickedRef = useRef(false);
-  const nativeTracks = () =>
-    (videoRef.current as unknown as { audioTracks?: ArrayLike<NativeAudioTrack> } | null)?.audioTracks;
-  const canSwitchNatively = () =>
-    typeof HTMLMediaElement !== "undefined" && "audioTracks" in HTMLMediaElement.prototype;
   const fileDefaultAudio = Math.max(0, audioTracks.findIndex((t) => t.isDefault));
 
-  // Native: read the element's own tracks once its metadata is in.
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !canSwitchNatively()) return;
-    const onMeta = () => {
-      const tracks = (video as unknown as { audioTracks?: ArrayLike<NativeAudioTrack> }).audioTracks;
-      if (!tracks || tracks.length < 2) return setAudioLabels([]);
-      const list = Array.from(tracks);
-      setAudioLabels(list.map((t, i) => t.label || t.language || `Track ${i + 1}`));
-      if (audioPickedRef.current) return;
-      const english = list.findIndex((t) => isEnglish(t.language, t.label));
-      const i = english >= 0 ? english : Math.max(0, list.findIndex((t) => t.enabled));
-      for (let t = 0; t < list.length; t++) list[t].enabled = t === i;
-      setActiveAudio(i);
-    };
-    video.addEventListener("loadedmetadata", onMeta);
-    return () => video.removeEventListener("loadedmetadata", onMeta);
-  }, [playbackSrc]);
-
-  // Server: the probe's track list; start on English when the file opens on another language.
+  // Start on English when the file opens on another language.
   useEffect(() => {
     audioPickedRef.current = false;
   }, [src]);
   useEffect(() => {
-    if (canSwitchNatively() || !remuxBase || audioTracks.length < 2) return;
+    if (!remuxBase || audioTracks.length < 2) return setAudioLabels([]);
     setAudioLabels(audioTracks.map((t, i) => t.title || t.language || `Track ${i + 1}`));
     if (audioPickedRef.current) return;
     audioPickedRef.current = true;
@@ -870,11 +846,6 @@ export function VideoPlayer({
     const next = (activeAudio + 1) % audioLabels.length;
     audioPickedRef.current = true;
     setActiveAudio(next);
-    const tracks = nativeTracks();
-    if (canSwitchNatively() && tracks) {
-      for (let t = 0; t < tracks.length; t++) tracks[t].enabled = t === next;
-      return;
-    }
     const v = videoRef.current;
     const at = v ? mediaTime(v) : 0;
     if (next === fileDefaultAudio) stopRemux(at);
