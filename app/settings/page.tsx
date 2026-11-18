@@ -20,7 +20,7 @@ export default function SettingsPage() {
   const [parallelDownloads, setParallelDownloads] = useState(3);
   const [bgLimitKB, setBgLimitKB] = useState(300); // KB/s, -1 = none
   const [cleanupDelay, setCleanupDelay] = useState(30);
-  const [subtitleLanguage, setSubtitleLanguage] = useState("English");
+  const [subtitleLanguage, setSubtitleLanguage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
@@ -34,7 +34,7 @@ export default function SettingsPage() {
       const bg = settings.backgroundDownloadLimit ?? 307200;
       setBgLimitKB(bg < 0 ? -1 : Math.round(bg / 1024));
       setCleanupDelay(settings.cleanupDelaySeconds);
-      setSubtitleLanguage(settings.subtitleLanguage ?? "English");
+      setSubtitleLanguage(settings.subtitleLanguage ?? "");
     }
   }, [settings]);
 

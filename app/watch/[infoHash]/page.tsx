@@ -66,7 +66,7 @@ function WatchPlayer({ params }: WatchPageProps) {
   useEffect(() => {
     fetch("/api/settings")
       .then((r) => (r.ok ? r.json() : null))
-      .then((s) => setSubtitleLanguage(s?.subtitleLanguage ?? "English"))
+      .then((s) => setSubtitleLanguage(s?.subtitleLanguage ?? ""))
       .catch(() => {});
   }, []);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);

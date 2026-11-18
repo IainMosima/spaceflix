@@ -18,7 +18,7 @@ const DEFAULT_SETTINGS: EngineSettings = {
   // Cap while only background downloads run (bytes/s, -1 none), so the house
   // keeps some internet. Watching always gets full speed.
   backgroundDownloadLimit: 307200,
-  subtitleLanguage: "English", // turned on automatically when a matching track exists
+  subtitleLanguage: "", // off: subtitles start off unless a language is set here
   cleanupDelaySeconds: 30,
   prebufferSeconds: 90, // wait up to 90s for the initial safety buffer
   bufferSizeMB: 200, // cache ~200MB so TVs can coast through peer stalls

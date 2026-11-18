@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getItemById, updateItem, deleteItem, getAllItems } from "@/lib/library-store";
 import { isValidTorrentInput } from "@/lib/torrent-utils";
-import { extractInfoHashFromMagnet, deleteFromWorker } from "@/lib/torrent-cache-actions";
+import { extractInfoHashFromMagnet, deleteFromWorker, clearFileFromWorker } from "@/lib/torrent-cache-actions";
 import { deleteCacheForLibraryItem } from "@/lib/storage-store";
 
 const UpdateItemSchema = z.object({
@@ -56,6 +56,24 @@ export async function PUT(
     if (validated.magnet && current && validated.magnet !== current.magnet) {
       if (getAllItems().some((i) => i.id !== id && i.magnet === validated.magnet)) {
         return NextResponse.json({ error: "That link is already in your library" }, { status: 409 });
+      }
+      // The old download goes with the old link, or it sits on disk unseen.
+      // A season pack other episodes still use only loses this episode's file.
+      const oldHash = current.infoHash ?? extractInfoHashFromMagnet(current.magnet);
+      if (oldHash) {
+        const shared = getAllItems().some(
+          (i) => i.id !== id && (i.infoHash ?? extractInfoHashFromMagnet(i.magnet))?.toLowerCase() === oldHash.toLowerCase()
+        );
+        if (!shared) {
+          await deleteFromWorker(oldHash, current.name);
+          try {
+            deleteCacheForLibraryItem(id);
+          } catch (e) {
+            console.error("Cache fs-fallback failed:", e);
+          }
+        } else if (current.fileIndex !== undefined) {
+          await clearFileFromWorker(oldHash, current.fileIndex);
+        }
       }
       // Everything learned from the old torrent no longer applies.
       Object.assign(validated, {
