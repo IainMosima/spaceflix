@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Spaceflix
 
-## Getting Started
+A home media streamer that runs on one computer and plays on every screen in the house. Paste a magnet link, press play, and it streams while it downloads. Phones, laptops and smart TVs on the same Wi-Fi open it in the browser.
 
-First, run the development server:
+Built with Next.js, TypeScript and WebTorrent, with ffmpeg for audio tracks and subtitles.
+
+## What it does
+
+- **Streams while downloading.** The pieces you are about to watch are fetched first, so playback starts in seconds and seeking jumps the queue.
+- **Series folders.** Paste an episode link and it files itself under its show, named `S01E05`, with the next episode code prefilled for the next paste. Season packs let you pick the episode, and the next one downloads in the background.
+- **Resume anywhere.** Watch progress is saved per episode, and "Continue" on the home page picks up where you left off on any device.
+- **Audio tracks and subtitles.** Pick any dub, English by default, even in Chrome and Edge, which cannot switch tracks natively: the server remuxes the stream with the chosen track. Embedded subtitles show up with an adjustable delay.
+- **TV friendly.** Large controls, remote keys (arrows, OK, play/pause, red and green for ±30s), and a lightweight page for older TV browsers.
+- **Storage that stays in check.** A storage panel shows what is on disk, finished episodes are cleared once you have moved on, and replacing a magnet link deletes the old download.
+- **Gentle on slow internet.** Uploads off by default, a background download cap so the house keeps some bandwidth, and full speed for whatever is being watched.
+- **Open in VLC.** One tap copies a VLC link for files the browser cannot play.
+
+## Run it
+
+You need Node.js 20+ and ffmpeg.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+make build
+make run        # http://localhost:8181, and your Wi-Fi address for phones and TVs
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`make ip` prints the address to open on other devices. `make stop` stops it.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Docker
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+make c-run      # start the container (make c-build to rebuild it)
+make c-logs     # follow the output
+make c-stop
+```
 
-## Learn More
+`make share` builds `dist/spaceflix.zip`, a ready-to-run kit for another computer (Windows, Mac or Linux with Docker Desktop). It pulls the latest image on each start.
 
-To learn more about Next.js, take a look at the following resources:
+## Where things are kept
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Your library, settings and downloads live in the data folder (`data/` by default, or the one picked in Settings). It is in `.gitignore`, so your library never ends up in git.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Use it responsibly
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Spaceflix is a general-purpose torrent client. Only download and stream content you have the right to, such as public-domain films, Creative Commons releases and your own media.
