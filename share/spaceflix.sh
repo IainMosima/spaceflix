@@ -9,7 +9,7 @@ cd "$(dirname "$0")" || exit 1
 # file it's running from is replaced.)
 if [ "${1:-start}" = start ] && [ -z "$SPACEFLIX_UPDATED" ] && command -v curl >/dev/null && command -v unzip >/dev/null; then
   KIT_TMP=$(mktemp -d)
-  if curl -fsSL --max-time 20 -o "$KIT_TMP/kit.zip" https://github.com/IainMosima/movie-app/releases/download/kit/spaceflix.zip \
+  if curl -fsSL --max-time 20 -o "$KIT_TMP/kit.zip" https://github.com/IainMosima/spaceflix/releases/download/kit/spaceflix.zip \
      && unzip -qo "$KIT_TMP/kit.zip" -d "$KIT_TMP/kit"; then
     KIT_CHANGED=
     for f in "$KIT_TMP"/kit/*; do

@@ -1,5 +1,5 @@
 # Every push that changes share/ rebuilds the kit and puts it at a fixed link:
-# https://github.com/IainMosima/movie-app/releases/download/kit/spaceflix.zip
+# https://github.com/IainMosima/spaceflix/releases/download/kit/spaceflix.zip
 name: kit
 
 on:

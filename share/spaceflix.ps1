@@ -14,7 +14,7 @@ if ($Action -eq 'start' -and -not $env:SPACEFLIX_UPDATED) {
   try {
     $zip = Join-Path $env:TEMP 'spaceflix-kit.zip'
     $tmp = Join-Path $env:TEMP 'spaceflix-kit'
-    Invoke-WebRequest 'https://github.com/IainMosima/movie-app/releases/download/kit/spaceflix.zip' `
+    Invoke-WebRequest 'https://github.com/IainMosima/spaceflix/releases/download/kit/spaceflix.zip' `
       -OutFile $zip -UseBasicParsing -TimeoutSec 20
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
     Expand-Archive $zip $tmp -Force
