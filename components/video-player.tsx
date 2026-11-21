@@ -28,6 +28,11 @@ import {
 import { cn, formatDuration } from "@/lib/utils";
 import { VlcIcon } from "@/components/vlc-icon";
 
+// Shared empty defaults: a fresh `[]` per render would re-fire every effect that
+// depends on these (and setAudioLabels([]) in one of them loops forever).
+const NO_SUBTITLES: NonNullable<VideoPlayerProps["subtitles"]> = [];
+const NO_AUDIO_TRACKS: NonNullable<VideoPlayerProps["audioTracks"]> = [];
+
 interface VideoPlayerProps {
   src: string;
   fallbackSrc?: string;
@@ -84,9 +89,9 @@ export function VideoPlayer({
   onClose,
   onStop,
   autoPlay = true,
-  subtitles = [],
+  subtitles = NO_SUBTITLES,
   subtitleLanguage = "",
-  audioTracks = [],
+  audioTracks = NO_AUDIO_TRACKS,
   remuxBase,
   strictPrebuffering = false,
   strictBufferSizeMB,
