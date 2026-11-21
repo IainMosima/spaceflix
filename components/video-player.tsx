@@ -65,6 +65,8 @@ interface VideoPlayerProps {
   onBufferHealth?: (secondsAhead: number) => void;
   /** Live HLS (.m3u8): hls.js / native HLS, no seek bar, no torrent recovery. */
   live?: boolean;
+  /** Live: offered on the error screen to fix the channel's link/headers. */
+  onEdit?: () => void;
   /** Copy this video's VLC link. Absent hides the button. */
   onVlc?: () => void;
 }
@@ -97,6 +99,7 @@ export function VideoPlayer({
   onPrev,
   onBufferHealth,
   live = false,
+  onEdit,
   onVlc,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -333,9 +336,13 @@ export function VideoPlayer({
         } else {
           h.destroy();
           fail(
-            code
-              ? `Live stream unavailable (HTTP ${code}). Check the link and its headers.`
-              : "Live stream unavailable. Check the link and its headers."
+            code === 401 || code === 403
+              ? `The stream refused the link (HTTP ${code}). It may have expired, or need different headers.`
+              : code === 404 || code === 410
+                ? `The stream link is gone (HTTP ${code}). It has probably expired.`
+                : code
+                  ? `Live stream unavailable (HTTP ${code}).`
+                  : "Live stream unavailable."
           );
         }
       });
@@ -1495,7 +1502,7 @@ export function VideoPlayer({
             <p className="text-lg text-white font-medium">{streamError}</p>
             <p className="text-sm text-zinc-400">
               {live
-                ? "The channel may be offline, or it needs a Referer / User-Agent / token header. Edit the channel to add one."
+                ? "Edit the channel to paste a fresh link or fix its headers, or flip to another channel."
                 : "The torrent may have no active peers. Try again later or choose a different source."}
             </p>
             <div className="flex gap-3">
@@ -1518,6 +1525,16 @@ export function VideoPlayer({
               >
                 Retry
               </Button>
+              {live && onEdit && (
+                <Button variant="outline" onClick={onEdit}>
+                  Edit channel
+                </Button>
+              )}
+              {live && onNext && (
+                <Button variant="outline" onClick={onNext}>
+                  Next channel
+                </Button>
+              )}
               {onClose && (
                 <Button variant="default" onClick={onClose}>
                   Go Back
