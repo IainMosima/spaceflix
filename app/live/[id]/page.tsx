@@ -4,14 +4,13 @@ import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { VideoPlayer } from "@/components/video-player";
 import { ChannelDialog } from "@/components/channel-dialog";
-import { copyText, useLanOrigin } from "@/hooks/use-vlc-copy";
+import { copyLanLink } from "@/hooks/use-vlc-copy";
 import type { Channel } from "@/types";
 
 export default function LiveWatchPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [channels, setChannels] = useState<Channel[]>([]);
-  const lanOrigin = useLanOrigin();
   const [editing, setEditing] = useState(false);
   // Bumped after an edit so the player reconnects with the new link/headers.
   const [rev, setRev] = useState(0);
@@ -59,8 +58,8 @@ export default function LiveWatchPage({ params }: { params: Promise<{ id: string
         nextLabel={label(1)}
         onNext={canSurf ? () => go(1) : undefined}
         onVlc={() =>
-          copyText(
-            `${lanOrigin ?? window.location.origin}/api/live/${encodeURIComponent(id)}`,
+          copyLanLink(
+            `/api/live/${encodeURIComponent(id)}`,
             "VLC link copied — paste it in VLC → Open Network Stream",
           )
         }

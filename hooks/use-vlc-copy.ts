@@ -4,9 +4,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { vlcLink } from "@/lib/vlc-link";
 
-// Shared by every component: the LAN origin is fetched once per page load.
-// A link built on localhost would be useless on a phone, so we swap in the
-// Mac's Wi-Fi address as soon as /api/lan answers.
+// The LAN origin, for display (useLanOrigin). Copied links never use this
+// cached value directly: copyAppLink builds the address at tap time.
 let lanOrigin: string | null = null;
 let lanRequest: Promise<void> | null = null;
 
@@ -53,22 +52,53 @@ function failed(link: string) {
   toast("Long-press to copy", { description: link, duration: 15000 });
 }
 
-/** Copy a VLC link. Must be called synchronously from the tap handler — no await before it. */
-export function copyVlcLink(infoHash: string, fileIndex?: number, title?: string): void {
-  const link = vlcLink(lanOrigin ?? window.location.origin, infoHash, fileIndex, title);
-  if (window.isSecureContext && navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(link).then(
-      () => toast.success(OK),
-      () => failed(link) // gesture already spent; show the link instead
+const isLocal = () => /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+
+/** The Wi-Fi address right now — never a cached one (the Mac's IP can change). */
+function freshLanOrigin(): Promise<string> {
+  return fetch("/api/lan", { cache: "no-store" })
+    .then((r) => r.json())
+    .then((d: { origin?: string }) => {
+      if (d.origin) lanOrigin = d.origin; // keeps useLanOrigin's display current too
+      return d.origin || window.location.origin;
+    });
+}
+
+/**
+ * Copy a link to this app (`build` gets the origin). Built at tap time so it's
+ * always fresh. On a phone/TV the page's own address is the one that just
+ * worked; on the Mac (localhost) the Wi-Fi address is fetched now, and the
+ * pending fetch is handed to the clipboard so it still counts as the tap.
+ * Must be called synchronously from the tap handler — no await before it.
+ */
+function copyAppLink(build: (origin: string) => string, okMessage: string): void {
+  if (!isLocal()) {
+    copyText(build(window.location.origin), okMessage);
+    return;
+  }
+  const link = freshLanOrigin().then(build, () => build(lanOrigin ?? window.location.origin));
+  if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+    const blob = link.then((l) => new Blob([l], { type: "text/plain" }));
+    navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]).then(
+      () => toast.success(okMessage),
+      () => link.then((l) => copyText(l, okMessage)) // e.g. Firefox: plain writeText
     );
     return;
   }
-  if (copyViaTextarea(link)) toast.success(OK);
-  else failed(link);
+  link.then((l) => copyText(l, okMessage));
+}
+
+/** Copy a VLC link. Must be called synchronously from the tap handler — no await before it. */
+export function copyVlcLink(infoHash: string, fileIndex?: number, title?: string): void {
+  copyAppLink((origin) => vlcLink(origin, infoHash, fileIndex, title), OK);
+}
+
+/** Copy a link to a path of this app, e.g. "/api/live/ch_1" (same fresh-address rule). */
+export function copyLanLink(path: string, okMessage: string): void {
+  copyAppLink((origin) => origin + path, okMessage);
 }
 
 export function useVlcCopy() {
-  useEffect(loadLanOrigin, []);
   return copyVlcLink;
 }
 

@@ -7,7 +7,7 @@ import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { VlcIcon } from "@/components/vlc-icon";
 import { Button } from "@/components/ui/button";
 import { ChannelDialog } from "@/components/channel-dialog";
-import { copyText, useLanOrigin } from "@/hooks/use-vlc-copy";
+import { copyLanLink } from "@/hooks/use-vlc-copy";
 import type { Channel } from "@/types";
 
 async function send(url: string, method: string, body?: unknown) {
@@ -26,7 +26,6 @@ export default function LivePage() {
   // undefined = closed, null = adding, Channel = editing
   const [editing, setEditing] = useState<Channel | null | undefined>(undefined);
   // Wi-Fi address, so the VLC link also works from a phone or TV.
-  const lanOrigin = useLanOrigin();
 
   const load = useCallback(() => {
     send("/api/channels", "GET")
@@ -109,8 +108,8 @@ export default function LivePage() {
                 aria-label={`Copy VLC link for ${ch.name}`}
                 title="Copy VLC link"
                 onClick={() =>
-                  copyText(
-                    `${lanOrigin ?? window.location.origin}/api/live/${encodeURIComponent(ch.id)}`,
+                  copyLanLink(
+                    `/api/live/${encodeURIComponent(ch.id)}`,
                     "VLC link copied — paste it in VLC → Open Network Stream",
                   )
                 }

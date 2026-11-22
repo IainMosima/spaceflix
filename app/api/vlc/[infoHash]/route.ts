@@ -34,7 +34,9 @@ export async function GET(
   let torrent = found;
   // A copied link can be opened in VLC long after (or before) the torrent was
   // loaded in the app — load it now so the link always works.
-  if (!torrent) {
+  // A known torrent still fetching its metadata has no file list yet:
+  // addTorrent on it waits until it's ready instead of a 404 for VLC.
+  if (!torrent?.ready) {
     const hash = infoHash.toLowerCase();
     const item = getAllItems().find(
       (i) => (i.infoHash ?? extractInfoHashFromMagnet(i.magnet))?.toLowerCase() === hash
