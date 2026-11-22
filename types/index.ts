@@ -90,6 +90,8 @@ export interface TorrentFileInfo {
   progress?: number;
   /** Verified bytes on disk (correct after the rolling stream drops pieces). */
   downloaded?: number;
+  /** Partial preload only: share of its pieces on disk (0–1). */
+  pinProgress?: number;
 }
 
 // API response types

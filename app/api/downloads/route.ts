@@ -15,7 +15,6 @@ import {
   type DownloadEntry,
 } from "@/lib/downloads-store";
 import { getSettings } from "@/lib/settings-store";
-import { getRecord } from "@/lib/watch-store";
 import { targetFor, type PreloadMode } from "@/lib/preload";
 import type { TorrentInfo } from "@/types";
 
@@ -56,7 +55,7 @@ function toRow(entry: DownloadEntry, torrent: TorrentInfo | undefined): Download
   const f = torrent?.files[entry.fileIndex];
   // A partial preload is measured against its target, from verified bytes.
   const progress = entry.targetBytes
-    ? Math.min(1, (f?.downloaded ?? 0) / entry.targetBytes)
+    ? (f?.pinProgress ?? Math.min(1, (f?.downloaded ?? 0) / entry.targetBytes))
     : (f?.progress ?? 0);
   const speed = torrent?.downloadSpeed ?? 0;
   const base = {
@@ -128,13 +127,6 @@ export async function GET() {
   const unfinished: DownloadEntry[] = [];
 
   for (const entry of listDownloads()) {
-    // Watching a partial preload uses it up (the stream takes over and drops
-    // what's been watched), so it leaves the list instead of re-downloading.
-    const watched = entry.targetBytes ? getRecord(entry.infoHash, entry.fileIndex) : null;
-    if (watched && watched.positionSec > 0 && watched.updatedAt > entry.addedAt) {
-      removeDownload(entry.infoHash, entry.fileIndex);
-      continue;
-    }
     const row = toRow(entry, findTorrent(torrents, entry.infoHash));
     if (row.state === "ready" && now - entry.addedAt > READY_KEEP_MS) {
       removeDownload(entry.infoHash, entry.fileIndex); // ponytail: it's just a list entry
