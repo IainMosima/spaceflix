@@ -14,6 +14,9 @@ import {
   workerPrefetch,
   type DownloadEntry,
 } from "@/lib/downloads-store";
+import { getSettings } from "@/lib/settings-store";
+import { getRecord } from "@/lib/watch-store";
+import { targetFor, type PreloadMode } from "@/lib/preload";
 import type { TorrentInfo } from "@/types";
 
 type DownloadState = "queued" | "downloading" | "paused" | "ready" | "error";
@@ -29,6 +32,10 @@ interface DownloadRow {
   state: DownloadState;
   speed: number;
   message?: string;
+  /** Partial preload size; absent = whole file. */
+  targetBytes?: number;
+  /** Shown once after queueing, e.g. "Only room for 9%". */
+  notice?: string;
 }
 
 const READY_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
@@ -46,7 +53,11 @@ let lastResume = 0;
 
 function toRow(entry: DownloadEntry, torrent: TorrentInfo | undefined): DownloadRow {
   const id = downloadId(entry.infoHash, entry.fileIndex);
-  const progress = torrent?.files[entry.fileIndex]?.progress ?? 0;
+  const f = torrent?.files[entry.fileIndex];
+  // A partial preload is measured against its target, from verified bytes.
+  const progress = entry.targetBytes
+    ? Math.min(1, (f?.downloaded ?? 0) / entry.targetBytes)
+    : (f?.progress ?? 0);
   const speed = torrent?.downloadSpeed ?? 0;
   const base = {
     id,
@@ -57,6 +68,7 @@ function toRow(entry: DownloadEntry, torrent: TorrentInfo | undefined): Download
     size: entry.size,
     progress,
     speed,
+    ...(entry.targetBytes && { targetBytes: entry.targetBytes }),
   };
   if (progress >= 1) return { ...base, state: "ready" };
   if (entry.paused) return { ...base, speed: 0, state: "paused" };
@@ -79,8 +91,10 @@ function findTorrent(torrents: TorrentInfo[], hash: string): TorrentInfo | undef
   return torrents.find((t) => t.infoHash?.toLowerCase() === hash);
 }
 
-async function pin(entry: Pick<DownloadEntry, "infoHash" | "fileIndex">): Promise<string | null> {
-  const r = await workerPrefetch(entry.infoHash, entry.fileIndex, true);
+async function pin(
+  entry: Pick<DownloadEntry, "infoHash" | "fileIndex" | "targetBytes">
+): Promise<string | null> {
+  const r = await workerPrefetch(entry.infoHash, entry.fileIndex, true, entry.targetBytes);
   const id = downloadId(entry.infoHash, entry.fileIndex);
   if (prefetchAccepted(r)) {
     pinErrors.delete(id);
@@ -114,6 +128,13 @@ export async function GET() {
   const unfinished: DownloadEntry[] = [];
 
   for (const entry of listDownloads()) {
+    // Watching a partial preload uses it up (the stream takes over and drops
+    // what's been watched), so it leaves the list instead of re-downloading.
+    const watched = entry.targetBytes ? getRecord(entry.infoHash, entry.fileIndex) : null;
+    if (watched && watched.positionSec > 0 && watched.updatedAt > entry.addedAt) {
+      removeDownload(entry.infoHash, entry.fileIndex);
+      continue;
+    }
     const row = toRow(entry, findTorrent(torrents, entry.infoHash));
     if (row.state === "ready" && now - entry.addedAt > READY_KEEP_MS) {
       removeDownload(entry.infoHash, entry.fileIndex); // ponytail: it's just a list entry
@@ -141,10 +162,12 @@ interface QueueItem {
   fileIndex?: unknown;
   title?: unknown;
   size?: unknown;
+  /** Download choice: "full" | "percent" (Settings' %, default) | "fit". */
+  mode?: unknown;
 }
 
 type QueueResult =
-  | { ok: true; row: DownloadRow; bytes: number }
+  | { ok: true; row: DownloadRow & { notice?: string }; bytes: number }
   | { ok: false; status: number; error: string; message: string };
 
 function mainVideoIndex(files: TorrentInfo["files"]): number | null {
@@ -193,27 +216,42 @@ async function queue(item: QueueItem, committed: number): Promise<QueueResult> {
   const size = file.length || Number(item.size) || 0;
   const title = (typeof item.title === "string" && item.title) || file.name;
 
-  // Same 8 GB floor as /api/torrent/[infoHash]/prefetch, against what this
-  // request has already queued. A finished file needs no space.
-  const needs = (file.progress ?? 0) >= 1 ? 0 : size;
-  if (needs > 0) {
+  // The Download choice: the whole file, Settings' %, or as much as fits —
+  // never into the 8 GB reserve (against what this request already queued).
+  // A finished file needs no space.
+  const mode: PreloadMode = item.mode === "full" || item.mode === "fit" ? item.mode : "percent";
+  let targetBytes: number | undefined;
+  let notice: string | undefined;
+  let needs = 0;
+  if ((file.progress ?? 0) < 1) {
     const disk = getDiskSpace();
     const free = disk.freeBytes - committed;
-    if (free - needs < disk.floorBytes) {
+    const pct = Number(getSettings().preloadPercent ?? 25);
+    const target = targetFor(mode, size, pct, free, disk.floorBytes);
+    if (!target) {
+      const room = `${formatBytes(Math.max(0, free))} free, ${formatBytes(disk.floorBytes)} is kept in reserve`;
       return {
         ok: false,
         status: 507,
         error: "low-disk",
-        message: `Not enough space (needs ${formatBytes(needs)} + ${formatBytes(disk.floorBytes)} reserve, ${formatBytes(Math.max(0, free))} free)`,
+        message:
+          mode === "full"
+            ? `Not enough space for the whole file (${formatBytes(size)}; ${room}). Try "As much as fits".`
+            : `Not enough space (${room})`,
       };
+    }
+    needs = target.bytes;
+    if (target.bytes < size) targetBytes = target.bytes;
+    if (target.capped) {
+      notice = `Only room for ${Math.floor((target.bytes / size) * 100)}% (${formatBytes(target.bytes)}). The rest streams when you watch.`;
     }
   }
 
-  const failed = await pin({ infoHash: hash, fileIndex });
+  const failed = await pin({ infoHash: hash, fileIndex, targetBytes });
   if (failed) return { ok: false, status: 502, error: "worker-error", message: failed };
 
-  const entry = addDownload({ infoHash: hash, fileIndex, magnet, title, size });
-  return { ok: true, row: toRow(entry, torrent), bytes: needs };
+  const entry = addDownload({ infoHash: hash, fileIndex, magnet, title, size, targetBytes });
+  return { ok: true, row: { ...toRow(entry, torrent), notice }, bytes: needs };
 }
 
 // POST /api/downloads  { magnet, infoHash?, fileIndex?, title, size? } | { items: [...] }

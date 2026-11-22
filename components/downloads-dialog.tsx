@@ -25,7 +25,7 @@ function formatBytes(bytes: number): string {
 
 function timeLeft(d: DownloadEntry): string | null {
   if (d.state !== "downloading" || d.speed <= 0 || !d.size) return null;
-  const secs = (d.size * (1 - d.progress)) / d.speed;
+  const secs = ((d.targetBytes ?? d.size) * (1 - d.progress)) / d.speed;
   // Right after a (re)start the speed is a trickle and the estimate is noise.
   if (!Number.isFinite(secs) || secs > 48 * 3600) return null;
   if (secs < 90) return "under 2 min left";
@@ -290,6 +290,9 @@ export function DownloadsDialog({
           )}
           {sorted.map((d) => {
             const pct = Math.floor(d.progress * 100);
+            // Partial preload: % of the movie it covers, and its own size.
+            const part = d.targetBytes && d.size > 0 ? Math.floor((d.targetBytes / d.size) * 100) : null;
+            const goal = d.targetBytes ?? d.size;
             const isBusy = busy === d.id;
             const eta = timeLeft(d);
             return (
@@ -311,10 +314,15 @@ export function DownloadsDialog({
                                 : "text-zinc-400"
                         }
                       >
-                        {d.state === "error" && d.message ? d.message : STATE_TEXT[d.state]}
+                        {d.state === "error" && d.message
+                          ? d.message
+                          : d.state === "downloading" && part !== null
+                            ? `Preloading ${part}%`
+                            : STATE_TEXT[d.state]}
                       </span>
+                      {d.state === "ready" && part !== null && ` · ${part}% preloaded`}
                       {d.state !== "ready" && ` · ${pct}%`}
-                      {d.size > 0 && ` · ${formatBytes(d.size * Math.min(1, d.progress))} of ${formatBytes(d.size)}`}
+                      {goal > 0 && ` · ${formatBytes(goal * Math.min(1, d.progress))} of ${formatBytes(goal)}`}
                       {d.state === "downloading" && d.speed > 0 && ` · ${formatSpeed(d.speed)}`}
                       {eta && ` · ${eta}`}
                     </p>

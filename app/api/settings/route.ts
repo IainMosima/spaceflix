@@ -19,6 +19,10 @@ const UpdateSettingsSchema = z.object({
   purgePreviousMode: z.enum(["watched", "downloaded"]).optional(),
   purgePreviousMinutes: z.number().int().min(1).max(60).optional(),
   purgePreviousPercent: z.number().int().min(1).max(100).optional(),
+  rollingStream: z.boolean().optional(),
+  rollingKeepBehindGB: z.number().min(0.5).max(50).optional(),
+  rollingAheadGB: z.number().min(0.5).max(20).optional(),
+  preloadPercent: z.number().int().min(5).max(100).optional(),
 });
 
 // GET /api/settings - Get engine settings

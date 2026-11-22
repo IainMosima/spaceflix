@@ -29,6 +29,10 @@ const DEFAULT_SETTINGS: EngineSettings = {
   purgePreviousMode: "watched", // after Next: drop the previous episode once 7 min in
   purgePreviousMinutes: 7,
   purgePreviousPercent: 20,
+  rollingStream: true, // Storage optimization: keep only a window of the movie on disk
+  rollingKeepBehindGB: 4,
+  rollingAheadGB: 2,
+  preloadPercent: 25, // Download fetches this % of a movie; the rest streams
 };
 
 function ensureSettingsFile(path: string): void {

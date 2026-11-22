@@ -21,6 +21,10 @@ export default function SettingsPage() {
   const [bgLimitKB, setBgLimitKB] = useState(300); // KB/s, -1 = none
   const [cleanupDelay, setCleanupDelay] = useState(30);
   const [subtitleLanguage, setSubtitleLanguage] = useState("");
+  const [rolling, setRolling] = useState(true);
+  const [keepBehindGB, setKeepBehindGB] = useState(4);
+  const [aheadGB, setAheadGB] = useState(2);
+  const [preloadPct, setPreloadPct] = useState(25);
   const [isSaving, setIsSaving] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
@@ -35,6 +39,10 @@ export default function SettingsPage() {
       setBgLimitKB(bg < 0 ? -1 : Math.round(bg / 1024));
       setCleanupDelay(settings.cleanupDelaySeconds);
       setSubtitleLanguage(settings.subtitleLanguage ?? "");
+      setRolling(settings.rollingStream !== false);
+      setKeepBehindGB(settings.rollingKeepBehindGB ?? 4);
+      setAheadGB(settings.rollingAheadGB ?? 2);
+      setPreloadPct(settings.preloadPercent ?? 25);
     }
   }, [settings]);
 
@@ -49,6 +57,10 @@ export default function SettingsPage() {
         backgroundDownloadLimit: bgLimitKB < 0 ? -1 : Math.round(bgLimitKB * 1024),
         cleanupDelaySeconds: cleanupDelay,
         subtitleLanguage: subtitleLanguage.trim(),
+        rollingStream: rolling,
+        rollingKeepBehindGB: Math.min(50, Math.max(0.5, keepBehindGB || 4)),
+        rollingAheadGB: Math.min(20, Math.max(0.5, aheadGB || 2)),
+        preloadPercent: Math.round(Math.min(100, Math.max(5, preloadPct || 25))),
       });
       toast.success("Settings saved");
     } catch (err) {
@@ -221,6 +233,103 @@ export default function SettingsPage() {
                 </p>
               </div>
             </div>
+          </Card>
+
+          {/* Storage optimization: rolling stream */}
+          <Card className="p-6 bg-zinc-900/50 border-zinc-800">
+            <h2 className="font-semibold mb-4">Storage Optimization</h2>
+            <button
+              type="button"
+              onClick={() => setRolling(!rolling)}
+              role="switch"
+              aria-checked={rolling}
+              className="w-full flex items-center justify-between gap-3 py-2 px-2.5 -mx-0.5 rounded-lg hover:bg-zinc-800/40 transition-colors text-left"
+            >
+              <span className="min-w-0">
+                <span className="block text-sm text-zinc-300">
+                  Delete what I&apos;ve already watched while streaming
+                </span>
+                <span className="block text-xs text-zinc-500 mt-0.5">
+                  {rolling
+                    ? `A 28 GB 4K movie needs about ${Math.round(keepBehindGB + aheadGB)} GB free instead of 28 GB`
+                    : "Whole movies are kept on disk while you watch"}
+                </span>
+              </span>
+              <span
+                className={`shrink-0 h-6 w-10 rounded-full p-0.5 transition-colors ${
+                  rolling ? "bg-purple-600" : "bg-zinc-700"
+                }`}
+              >
+                <span
+                  className={`block h-5 w-5 rounded-full bg-white transition-transform ${
+                    rolling ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </span>
+            </button>
+            {rolling && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label htmlFor="keep-behind" className="text-sm text-zinc-400 mb-2 block">
+                    Keep behind (GB)
+                  </label>
+                  <Input
+                    id="keep-behind"
+                    type="number"
+                    value={keepBehindGB}
+                    onChange={(e) => setKeepBehindGB(Number(e.target.value))}
+                    min={0.5}
+                    max={50}
+                    step={0.5}
+                    className="bg-zinc-800 border-zinc-700 w-32"
+                  />
+                  <p className="text-xs text-zinc-600 mt-1">
+                    Seeking back further than this re-downloads
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="buffer-ahead" className="text-sm text-zinc-400 mb-2 block">
+                    Buffer ahead (GB)
+                  </label>
+                  <Input
+                    id="buffer-ahead"
+                    type="number"
+                    value={aheadGB}
+                    onChange={(e) => setAheadGB(Number(e.target.value))}
+                    min={0.5}
+                    max={20}
+                    step={0.5}
+                    className="bg-zinc-800 border-zinc-700 w-32"
+                  />
+                  <p className="text-xs text-zinc-600 mt-1">
+                    Downloaded ahead of where you are
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="mt-4">
+              <label htmlFor="preload-pct" className="text-sm text-zinc-400 mb-2 block">
+                Preload when I press Download (%)
+              </label>
+              <Input
+                id="preload-pct"
+                type="number"
+                value={preloadPct}
+                onChange={(e) => setPreloadPct(Number(e.target.value))}
+                min={5}
+                max={100}
+                step={5}
+                className="bg-zinc-800 border-zinc-700 w-32"
+              />
+              <p className="text-xs text-zinc-600 mt-1">
+                Downloads this much of a movie ahead of time, never into the 8 GB
+                reserve. The rest streams when you watch. 100 = the whole movie.
+              </p>
+            </div>
+            <p className="text-xs text-zinc-600 mt-3">
+              Applies to titles you add from now on. Titles already on disk stay
+              whole. The next episode gets only its first {aheadGB} GB ahead of time.
+            </p>
           </Card>
 
           <div id="storage" className="scroll-mt-20">

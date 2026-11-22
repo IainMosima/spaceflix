@@ -19,6 +19,8 @@ import {
   Pause,
 } from "lucide-react";
 import { VlcIcon } from "@/components/vlc-icon";
+import { DownloadMenu } from "@/components/download-menu";
+import type { PreloadMode } from "@/lib/preload";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -511,12 +513,18 @@ export function FilePicker({
                             <div className="flex items-center justify-end gap-1 px-2 pb-1 sm:p-0 sm:contents">
                             <DownloadStateLabel s={dl} className="shrink min-w-0 px-1 mr-auto sm:mr-0" />
                             {dl.state !== "ready" && (
+                              <DownloadMenu
+                                enabled={dl.state === "idle" || dl.state === "error"}
+                                size={file.size * (1 - dl.progress)}
+                                free={downloads.free}
+                                onPick={(mode) => downloads.start(String(file.index), { ...targetOf(file), mode })}
+                              >
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  // Idle: the Download menu opens instead (Full / % / As much as fits).
                                   if (dl.state === "downloading" || dl.state === "queued" || dl.state === "paused")
                                     downloads.togglePause(rowOf(file));
-                                  else downloads.start(String(file.index), targetOf(file));
                                 }}
                                 disabled={dl.state === "starting"}
                                 className={cn(
@@ -544,6 +552,7 @@ export function FilePicker({
                                   <Download className="h-4 w-4" />
                                 )}
                               </button>
+                              </DownloadMenu>
                             )}
                             {onVLC && (
                               <button
@@ -714,10 +723,10 @@ export function DownloadAhead({
   const room = free === null ? null : free - FLOOR_BYTES;
   const fits = room === null || total <= room;
 
-  const go = async () => {
+  const go = async (mode: PreloadMode) => {
     setBusy(true);
     try {
-      await onStart(todo.map(({ rowId, target }) => ({ rowId, target })));
+      await onStart(todo.map(({ rowId, target }) => ({ rowId, target: { ...target, mode } })));
     } finally {
       setBusy(false);
     }
@@ -746,19 +755,20 @@ export function DownloadAhead({
               fits ? "Fits" : `Needs ${fmtBytes(total - room!)} more space`
             }`}
       </span>
-      <Button
-        onClick={go}
-        disabled={busy || !fits || todo.length === 0}
-        variant="outline"
-        className="h-11 border-zinc-700 focus-visible:ring-2 focus-visible:ring-purple-400"
-      >
-        {busy ? (
-          <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
-        ) : (
-          <Download className="h-4 w-4" />
-        )}
-        Download {todo.length} episode{todo.length !== 1 ? "s" : ""}
-      </Button>
+      <DownloadMenu size={total} free={free} onPick={go}>
+        <Button
+          disabled={busy || todo.length === 0}
+          variant="outline"
+          className="h-11 border-zinc-700 focus-visible:ring-2 focus-visible:ring-purple-400"
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          Download {todo.length} episode{todo.length !== 1 ? "s" : ""}
+        </Button>
+      </DownloadMenu>
     </div>
   );
 }

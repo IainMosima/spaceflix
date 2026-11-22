@@ -17,6 +17,8 @@ export interface DownloadEntry {
   addedAt: number;
   /** Paused by the user: kept on disk, not fetched, skipped on restart. */
   paused?: boolean;
+  /** Partial preload: only the first N bytes (+ the tail). Absent = whole file. */
+  targetBytes?: number;
 }
 
 export function downloadId(infoHash: string, fileIndex: number): string {
@@ -100,12 +102,13 @@ export type WorkerPrefetchResult = {
 export async function workerPrefetch(
   infoHash: string,
   fileIndex: number,
-  pin: boolean
+  pin: boolean,
+  bytes?: number
 ): Promise<WorkerPrefetchResult> {
   try {
     const base = await withTimeout(getTorrentEngine().getWorkerBaseUrl(), 4000, "Worker");
     const res = await fetch(
-      `${base}/prefetch/${infoHash}?file=${fileIndex}${pin ? "&pin=1" : ""}`,
+      `${base}/prefetch/${infoHash}?file=${fileIndex}${pin ? "&pin=1" : ""}${bytes ? `&bytes=${Math.floor(bytes)}` : ""}`,
       { method: "POST", signal: AbortSignal.timeout(8000) }
     );
     if (!res.ok) return { prefetching: false, reason: "worker-error" };

@@ -46,6 +46,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { isValidTorrentInput, extractInfoHash } from "@/lib/torrent-utils";
 import { useDownloadProgress, type DownloadTarget } from "@/hooks/use-download-progress";
+import { DownloadMenu } from "@/components/download-menu";
+import type { PreloadMode } from "@/lib/preload";
 import { DownloadAhead, DownloadBar, DownloadStateLabel } from "@/components/file-picker";
 import { cn } from "@/lib/utils";
 import { episodeCode, parseEpisode, sortFolderItems } from "@/lib/episode-order";
@@ -151,7 +153,8 @@ export function FolderDialog({
     title: i.name,
     size: sizeOf(i),
   });
-  const startDownload = (item: LibraryItemWithUsage) => downloads.start(item.id, targetOf(item));
+  const startDownload = (item: LibraryItemWithUsage, mode: PreloadMode) =>
+    downloads.start(item.id, { ...targetOf(item), mode });
 
   // The series strip: where you are, the episode after it, what's watched and on disk.
   const seriesEpisodes: SeriesEpisode[] = ordered.map((i) => {
@@ -499,14 +502,20 @@ export function FolderDialog({
                     {/* Phone: actions on their own line so the name keeps the width */}
                     <div className="flex w-full sm:w-auto items-center justify-end gap-1 shrink-0">
                     {!ready && (
+                      <DownloadMenu
+                        enabled={dl.state === "idle" || dl.state === "error"}
+                        size={(targetOf(item).size ?? 0) * (1 - dl.progress)}
+                        free={downloads.free}
+                        onPick={(mode) => startDownload(item, mode)}
+                      >
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() =>
-                          dl.state === "downloading" || dl.state === "queued" || dl.state === "paused"
-                            ? downloads.togglePause(rowOf(item))
-                            : startDownload(item)
-                        }
+                        // Idle: the Download menu opens instead (Full / % / As much as fits).
+                        onClick={() => {
+                          if (dl.state === "downloading" || dl.state === "queued" || dl.state === "paused")
+                            downloads.togglePause(rowOf(item));
+                        }}
                         disabled={dl.state === "starting"}
                         className={cn(
                           "h-10 w-10 hover:text-purple-300 focus-visible:ring-2 focus-visible:ring-purple-400 shrink-0",
@@ -533,6 +542,7 @@ export function FolderDialog({
                           <Download className="h-4 w-4" />
                         )}
                       </Button>
+                      </DownloadMenu>
                     )}
 
                     <Button

@@ -36,6 +36,14 @@ export interface EngineSettings {
   purgePreviousMode?: "watched" | "downloaded";
   purgePreviousMinutes?: number;
   purgePreviousPercent?: number;
+  /** Storage optimization: delete what's been watched while streaming. On by default. */
+  rollingStream?: boolean;
+  /** GB kept behind the playhead (seek back this far without re-downloading). */
+  rollingKeepBehindGB?: number;
+  /** GB downloaded ahead of the playhead. */
+  rollingAheadGB?: number;
+  /** Download preloads this % of a file (capped by free space); the rest streams. */
+  preloadPercent?: number;
 }
 
 // Search result types
@@ -80,6 +88,8 @@ export interface TorrentFileInfo {
   length: number;
   index: number;
   progress?: number;
+  /** Verified bytes on disk (correct after the rolling stream drops pieces). */
+  downloaded?: number;
 }
 
 // API response types

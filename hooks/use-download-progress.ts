@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 /** What POST /api/downloads needs. Folder items may know only the magnet. */
 export interface DownloadTarget {
@@ -9,6 +10,8 @@ export interface DownloadTarget {
   fileIndex?: number;
   title: string;
   size?: number;
+  /** Download choice: whole file, Settings' % (default), or as much as fits. */
+  mode?: "full" | "percent" | "fit";
 }
 
 /** One entry of GET /api/downloads. */
@@ -23,6 +26,10 @@ export interface DownloadEntry {
   state: "queued" | "downloading" | "paused" | "ready" | "error";
   speed: number;
   message?: string;
+  /** Partial preload size (Settings → Storage Optimization); absent = whole file. */
+  targetBytes?: number;
+  /** Once, right after queueing: e.g. only part of the % fitted. */
+  notice?: string;
 }
 
 export interface DownloadRow {
@@ -125,6 +132,8 @@ export function useDownloadProgress(open: boolean, rows: DownloadRow[]) {
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => ({}));
+      const queued: DownloadEntry[] = list.length === 1 ? [json] : (json.downloads ?? []);
+      for (const q of queued) if (q?.notice) toast.info(`${q.title}: ${q.notice}`);
       if (list.length === 1) {
         // Single: the entry itself, or { error, message }.
         const r = json as { id?: string; error?: string; message?: string };
