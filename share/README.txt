@@ -11,3 +11,7 @@ Movies are saved on this computer:
   Mac ~/Movies/Spaceflix · Linux ~/Videos/Spaceflix
   Windows D:\Movies\Spaceflix (or ~\Videos\Spaceflix with no D: drive)
 Change it in the app under Settings. Your phone/TV address is printed on start.
+
+Low on space? Storage optimization (on by default, in Settings) deletes what you
+have already watched while you stream, and Download lets you pick Full movie,
+a preload (25%) or as much as fits. It never fills the last 8 GB of the disk.
