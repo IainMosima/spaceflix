@@ -82,6 +82,16 @@ const RESUME_NOTICE_MS = 8_000;
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 const STALL_RECOVERY_MS = 45_000;
 
+type AudioTrack = NonNullable<VideoPlayerProps["audioTracks"]>[number];
+const isEnglish = (lang: string, label: string) => /^(en|eng)\b/i.test(lang) || /english/i.test(label);
+/** English if the file has it, else the file's default; `remux` = the browser can't play it as is. */
+function pickAudio(tracks: AudioTrack[]) {
+  const fileDefault = Math.max(0, tracks.findIndex((t) => t.isDefault));
+  const english = tracks.findIndex((t) => isEnglish(t.language, t.title));
+  const index = english < 0 ? fileDefault : english;
+  return { index, fileDefault, remux: tracks.length > 1 && index !== fileDefault };
+}
+
 export function VideoPlayer({
   src,
   fallbackSrc,
@@ -138,7 +148,13 @@ export function VideoPlayer({
   const isTvPlaybackRef = useRef(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [mutedByAutoplay, setMutedByAutoplay] = useState(false);
-  const [playbackSrc, setPlaybackSrc] = useState(src);
+  // Opening on a dub the browser can't pick (e.g. English in an iTA-ENG file):
+  // load nothing until the remux is ready, so the native stream never loads
+  // and seeks first only to be thrown away.
+  const opensOnRemux = !live && !!remuxBase && pickAudio(audioTracks).remux;
+  const opensOnRemuxRef = useRef(opensOnRemux);
+  opensOnRemuxRef.current = opensOnRemux;
+  const [playbackSrc, setPlaybackSrc] = useState(opensOnRemux ? "" : src);
 
   // Server-side audio switch (Chrome/Edge can't pick a track): the worker
   // streams from `offset` with the chosen track, and that stream's clock starts
@@ -233,7 +249,7 @@ export function VideoPlayer({
   useEffect(() => {
     remuxTokenRef.current++;
     remuxRef.current = null;
-    setPlaybackSrc(src);
+    setPlaybackSrc(opensOnRemuxRef.current ? "" : src);
     setIsUsingFallbackStream(false);
     setSrcRevision(0);
     pendingResumeTimeRef.current = null;
@@ -270,7 +286,7 @@ export function VideoPlayer({
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || live) return;
+    if (!video || live || !playbackSrc) return; // "": the remux is on its way
     video.load();
     setStreamError(null);
     setIsBuffering(true);
@@ -855,11 +871,10 @@ export function VideoPlayer({
   // Audio tracks (dubs), English first. Browsers can't reliably list or switch
   // tracks in these files (Chrome/Edge never; TVs often see just one), so the
   // worker remuxes the stream with the chosen track (see startRemux).
-  const isEnglish = (lang: string, label: string) => /^(en|eng)\b/i.test(lang) || /english/i.test(label);
   const [audioLabels, setAudioLabels] = useState<string[]>([]);
   const [activeAudio, setActiveAudio] = useState(0);
   const audioPickedRef = useRef(false);
-  const fileDefaultAudio = Math.max(0, audioTracks.findIndex((t) => t.isDefault));
+  const { fileDefault: fileDefaultAudio } = pickAudio(audioTracks);
 
   // Start on English when the file opens on another language.
   useEffect(() => {
@@ -870,12 +885,13 @@ export function VideoPlayer({
     setAudioLabels(audioTracks.map((t, i) => t.title || t.language || `Track ${i + 1}`));
     if (audioPickedRef.current) return;
     audioPickedRef.current = true;
-    const english = audioTracks.findIndex((t) => isEnglish(t.language, t.title));
-    if (english < 0 || english === fileDefaultAudio) return setActiveAudio(fileDefaultAudio);
-    setActiveAudio(english);
+    const { index, remux } = pickAudio(audioTracks);
+    setActiveAudio(index);
+    if (!remux) return;
     const v = videoRef.current;
     // Not yet playing: start where the resume would have (pending is set above).
-    startRemux(english, pendingResumeTimeRef.current ?? (v ? mediaTime(v) : resumeFrom ?? 0));
+    // startRemux clears it, so this is the only seek.
+    startRemux(index, pendingResumeTimeRef.current ?? (v ? mediaTime(v) : resumeFrom ?? 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs per file / track list
   }, [audioTracks, remuxBase, src]);
 
@@ -1444,7 +1460,7 @@ export function VideoPlayer({
       {/* Video */}
       <video
         ref={videoRef}
-        src={live ? undefined : resolvedSrc}
+        src={live ? undefined : resolvedSrc || undefined}
         className="w-full h-full"
         autoPlay={autoPlay}
         playsInline
