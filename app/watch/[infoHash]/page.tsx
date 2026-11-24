@@ -380,31 +380,34 @@ function WatchPlayer({ params }: WatchPageProps) {
     let cancelled = false;
     let attempt = 0;
     const maxAttempts = 15;
+    const startedAt = Date.now();
+
+    // Hold the player until the audio tracks are known, so it opens straight on
+    // English rather than switching mid-play. The video can't start before the
+    // file's head is on disk anyway; after 30s, start it regardless.
+    const retry = (gotTracks: boolean) => {
+      attempt += 1;
+      if (gotTracks || attempt >= maxAttempts || Date.now() - startedAt > 30_000) setProbeComplete(true);
+      if (attempt < maxAttempts) setTimeout(runProbe, 2000);
+    };
 
     const runProbe = async () => {
+      if (cancelled) return;
       try {
         const r = await fetch(probeUrl);
         const data = r.ok ? await r.json() : null;
         if (cancelled) return;
-        if (Array.isArray(data?.audioTracks)) setAudioTracks(data.audioTracks);
+        const gotTracks = Array.isArray(data?.audioTracks);
+        if (gotTracks) setAudioTracks(data.audioTracks);
 
         if (data?.durationSec && data.durationSec > 0) {
           setProbedDuration(data.durationSec);
           setProbeComplete(true);
           return;
         }
-
-        // No duration yet — let the player start and retry in the background
-        setProbeComplete(true);
-        attempt += 1;
-        if (attempt < maxAttempts) {
-          setTimeout(runProbe, 2000);
-        }
+        retry(gotTracks);
       } catch {
-        if (cancelled) return;
-        setProbeComplete(true);
-        attempt += 1;
-        if (attempt < maxAttempts) setTimeout(runProbe, 2000);
+        if (!cancelled) retry(false);
       }
     };
 
